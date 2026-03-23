@@ -1,0 +1,34 @@
+name: Sync to Sfera.Code
+
+on:
+  push:
+    branches:
+      - '**'    
+  delete:
+    branches:
+      - '**'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
+
+      - name: Configure Git
+        run: |
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+      - name: Add Sfera.Code remote
+        run: |
+          git remote add sfera "${{ secrets.SFERA_REPO_URL }}"
+
+      - name: Push to Sfera.Code
+        env:
+          SFERA_TOKEN: ${{ secrets.SFERA_TOKEN }}
+        run: |
+          git push --force sfera --all
+          git push --force sfera --tags
