@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ikai.local/schemas/users.schema.json",
+  "title": "Users CSV Row Schema",
+  "description": "Schema for one row from users.csv",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "full_name": {
+      "type": "string",
+      "title": "ФИО/имя",
+      "minLength": 1
+    },
+    "email": {
+      "type": "string",
+      "format": "email",
+      "minLength": 3
+    },
+    "phone": {
+      "type": "string",
+      "description": "Phone in format +7XXXXXXXXXX",
+      "pattern": "^\\+7\\d{9}$"
+    },
+    "city": {
+      "type": "string",
+      "title": "Город",
+      "minLength": 1
+    },
+    "registered_at": {
+      "type": "string",
+      "title": "Дата регистрации",
+      "format": "date"
+    }
+  },
+  "required": [
+    "full_name",
+    "email",
+    "phone",
+    "city",
+    "registered_at"
+  ]
+}
