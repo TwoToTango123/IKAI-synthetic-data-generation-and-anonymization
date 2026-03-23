@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ikai.local/schemas/orders.schema.json",
+  "title": "Orders CSV Row Schema",
+  "description": "Schema for one row from orders.csv",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "order_id": {
+      "type": "integer",
+      "title": "ID заказа",
+      "minimum": 1
+    },
+    "user_id": {
+      "type": "integer",
+      "title": "ID пользователя",
+      "minimum": 1
+    },
+    "date": {
+      "type": "string",
+      "title": "Дата",
+      "format": "date"
+    },
+    "amount": {
+      "type": "number",
+      "title": "Сумма",
+      "exclusiveMinimum": 0
+    },
+    "status": {
+      "type": "string",
+      "title": "Статус",
+      "enum": [
+        "new",
+        "paid",
+        "processing",
+        "completed",
+        "cancelled"
+      ]
+    }
+  },
+  "required": [
+    "order_id",
+    "user_id",
+    "date",
+    "amount",
+    "status"
+  ]
+}
