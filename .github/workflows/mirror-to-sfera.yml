@@ -3,9 +3,6 @@ name: Sync to Sfera.Code
 on:
   push:
     branches:
-      - '**'    
-  delete:
-    branches:
       - '**'
 
 jobs:
@@ -15,20 +12,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 
+          fetch-depth: 0
 
       - name: Configure Git
         run: |
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
 
-      - name: Add Sfera.Code remote
+      - name: Add Sfera.Code remote with credentials
+        env:
+          SFERA_USERNAME: ${{ secrets.SFERA_USERNAME }}
+          SFERA_PASSWORD: ${{ secrets.SFERA_PASSWORD }}
+          SFERA_URL: ${{ secrets.SFERA_REPO_URL }}
         run: |
-          git remote add sfera "${{ secrets.SFERA_REPO_URL }}"
+          # Вставляем логин и пароль прямо в URL
+          AUTH_URL=$(echo "$SFERA_URL" | sed "s|https://|https://${SFERA_USERNAME}:${SFERA_PASSWORD}@|")
+          git remote add sfera "$AUTH_URL"
 
       - name: Push to Sfera.Code
-        env:
-          SFERA_TOKEN: ${{ secrets.SFERA_TOKEN }}
         run: |
           git push --force sfera --all
           git push --force sfera --tags
