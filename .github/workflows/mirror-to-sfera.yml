@@ -19,14 +19,18 @@ jobs:
           git config user.name "${{ github.actor }}"
           git config user.email "${{ github.actor }}@users.noreply.github.com"
 
-      - name: Add Sfera.Code remote with credentials
+      - name: Add Sfera.Code remote with URL-encoded credentials
         env:
           SFERA_USERNAME: ${{ secrets.SFERA_USERNAME }}
           SFERA_PASSWORD: ${{ secrets.SFERA_PASSWORD }}
           SFERA_URL: ${{ secrets.SFERA_REPO_URL }}
         run: |
-          # Вставляем логин и пароль прямо в URL
-          AUTH_URL=$(echo "$SFERA_URL" | sed "s|https://|https://${SFERA_USERNAME}:${SFERA_PASSWORD}@|")
+          # URL-кодируем логин и пароль (заменяем специальные символы)
+          ENCODED_USER=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$SFERA_USERNAME', safe=''))")
+          ENCODED_PASS=$(python3 -c "import urllib.parse; print(urllib.parse.quote('$SFERA_PASSWORD', safe=''))")
+          
+          # Вставляем закодированные credentials в URL
+          AUTH_URL=$(echo "$SFERA_URL" | sed "s|https://|https://${ENCODED_USER}:${ENCODED_PASS}@|")
           git remote add sfera "$AUTH_URL"
 
       - name: Push to Sfera.Code
