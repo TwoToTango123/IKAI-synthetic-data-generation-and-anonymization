@@ -5,8 +5,10 @@ function Generate() {
   const [template, setTemplate] = useState('users')
   const [rows, setRows] = useState(1000)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleGenerateClick = async () => {
+    setError('')
     setLoading(true)
     try {
       const payload = {
@@ -23,7 +25,8 @@ function Generate() {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(link)
     } catch (err) {
-      console.error('Generate API error:', err)
+      const message = err?.message || 'Не удалось сгенерировать данные'
+      setError(`Ошибка API: ${message}`)
     } finally {
       setLoading(false)
     }
@@ -32,6 +35,13 @@ function Generate() {
   return (
     <div className="container">
       <h1 className="section-title">Генерация данных</h1>
+
+      {error && (
+        <div className="alert alert-error">
+          <span className="alert-icon">!</span>
+          <div>{error}</div>
+        </div>
+      )}
 
       <div className="form-group">
         <label className="form-label">Выберите шаблон:</label>

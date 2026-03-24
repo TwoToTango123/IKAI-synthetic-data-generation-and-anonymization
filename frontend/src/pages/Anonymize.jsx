@@ -5,14 +5,20 @@ import { anonymizeData } from '../services/api'
 function Anonymize() {
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   const handleFileUpload = (uploadedFile) => {
     setFile(uploadedFile)
+    setError('')
   }
 
   const handleAnonymize = async () => {
-    if (!file) return
+    if (!file) {
+      setError('Пожалуйста, загрузите CSV файл')
+      return
+    }
 
+    setError('')
     setLoading(true)
     try {
       const formData = new FormData()
@@ -28,7 +34,8 @@ function Anonymize() {
       window.URL.revokeObjectURL(url)
       document.body.removeChild(link)
     } catch (err) {
-      console.error('Anonymize API error:', err)
+      const message = err?.message || 'Не удалось обработать файл'
+      setError(`Ошибка API: ${message}`)
     } finally {
       setLoading(false)
     }
@@ -37,6 +44,13 @@ function Anonymize() {
   return (
     <div className="container">
       <h1 className="section-title">Анонимизация данных</h1>
+
+      {error && (
+        <div className="alert alert-error">
+          <span className="alert-icon">!</span>
+          <div>{error}</div>
+        </div>
+      )}
 
       {!file && <FileUpload onFileUpload={handleFileUpload} />}
 
