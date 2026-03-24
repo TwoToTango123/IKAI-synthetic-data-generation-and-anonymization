@@ -1,39 +1,21 @@
 import React, { useState } from 'react'
 import './App.css'
+import Header from './components/Header'
+import Generate from './pages/Generate'
 
 function App() {
   const [activeTab, setActiveTab] = useState('generate')
 
   return (
     <div className="app">
-      <header>
-        <div className="header-content">
-          <div className="header-title">
-            <span>DataGen Tool</span>
-          </div>
-          <nav className="nav-tabs">
-            <button
-              className={`nav-tab ${activeTab === 'generate' ? 'active' : ''}`}
-              onClick={() => setActiveTab('generate')}
-            >
-              Генерация данных
-            </button>
-            <button
-              className={`nav-tab ${activeTab === 'anonymize' ? 'active' : ''}`}
-              onClick={() => setActiveTab('anonymize')}
-            >
-              Анонимизация данных
-            </button>
-          </nav>
-        </div>
-      </header>
+      <Header activeTab={activeTab} setActiveTab={setActiveTab} />
       <main className="main-content">
-        <div className="container">
-          <h1 className="section-title">Frontend initialized</h1>
-          <p>
-            Активная вкладка: {activeTab === 'generate' ? 'Генерация данных' : 'Анонимизация данных'}
-          </p>
-        </div>
+        {activeTab === 'generate' && <Generate />}
+        {activeTab === 'anonymize' && (
+          <div className="container">
+            <h1 className="section-title">Анонимизация данных</h1>
+          </div>
+        )}
       </main>
     </div>
   )
