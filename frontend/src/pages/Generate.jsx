@@ -1,11 +1,32 @@
 import React, { useState } from 'react'
+import { generateData } from '../services/api'
 
 function Generate() {
   const [template, setTemplate] = useState('users')
   const [rows, setRows] = useState(1000)
+  const [loading, setLoading] = useState(false)
 
-  const handleGenerateClick = () => {
-    console.log('Generate clicked:', { template, rows: parseInt(rows, 10) })
+  const handleGenerateClick = async () => {
+    setLoading(true)
+    try {
+      const payload = {
+        template,
+        rows: parseInt(rows, 10),
+      }
+      const blob = await generateData(payload)
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `${template}.csv`
+      document.body.appendChild(link)
+      link.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(link)
+    } catch (err) {
+      console.error('Generate API error:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -39,8 +60,9 @@ function Generate() {
       <button
         className="btn btn-success btn-large btn-block"
         onClick={handleGenerateClick}
+        disabled={loading}
       >
-        Сгенерировать
+        {loading ? 'Генерирую...' : 'Сгенерировать'}
       </button>
     </div>
   )
