@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api'
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api'
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -9,15 +9,48 @@ const api = axios.create({
   },
 })
 
+const extractErrorMessage = async (error, fallbackMessage) => {
+  const data = error?.response?.data
+
+  if (data instanceof Blob) {
+    try {
+      const text = await data.text()
+      const json = JSON.parse(text)
+      return json?.detail || fallbackMessage
+    } catch {
+      return fallbackMessage
+    }
+  }
+
+  if (typeof data === 'object' && data !== null) {
+    return data.detail || data.message || fallbackMessage
+  }
+
+  if (typeof data === 'string' && data.trim()) {
+    return data
+  }
+
+  return error?.message || fallbackMessage
+}
+
 // Генерация данных
-export const generateData = async (payload) => {
+export const generateData = async ({ rows, template = 'users', countryCodes, phonePrefix, emailDomains, registeredFrom, registeredTo }) => {
   try {
-    const response = await api.post('/generate', payload, {
+    const response = await api.get('/generate', {
+      params: {
+        rows,
+        template,
+        country_codes: countryCodes,
+        phone_prefix: phonePrefix,
+        email_domains: emailDomains,
+        registered_from: registeredFrom,
+        registered_to: registeredTo,
+      },
       responseType: 'blob',
     })
     return response.data
   } catch (error) {
-    throw error.response?.data || error.message
+    throw new Error(await extractErrorMessage(error, 'Не удалось сгенерировать данные'))
   }
 }
 
@@ -32,23 +65,7 @@ export const anonymizeData = async (formData) => {
     })
     return response.data
   } catch (error) {
-    throw error.response?.data || error.message
-  }
-}
-
-// Получить предпросмотр загруженного CSV
-export const getPreview = async (file) => {
-  try {
-    const formData = new FormData()
-    formData.append('file', file)
-    const response = await api.post('/preview', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    })
-    return response.data
-  } catch (error) {
-    throw error.response?.data || error.message
+    throw new Error(await extractErrorMessage(error, 'Не удалось анонимизировать данные'))
   }
 }
 

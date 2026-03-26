@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from typing import Any
 from typing import Annotated
 
@@ -7,7 +8,7 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 
 from app.anonymization import anonymize_csv_email_mask
-from app.generation import generate_users_csv, generated_filename
+from app.generation import ALLOWED_EMAIL_DOMAINS, generate_users_csv, generated_filename
 from app.schema_validation import validate_payload
 
 app = FastAPI(title="Synthetic CSV Generator")
@@ -27,24 +28,71 @@ def health() -> dict[str, str]:
 def generate(
     rows: Annotated[int, Query(ge=1, le=10000)] = 100,
     template: Annotated[str, Query()] = "users",
-    phone_first_digits: Annotated[str, Query()] = "9",
+    country_codes: Annotated[str, Query()] = "7",
+    phone_prefix: Annotated[str, Query()] = "",
     email_domains: Annotated[str, Query()] = "yandex.ru,mail.ru,rambler.ru,gmail.com,microsoft.com",
+    registered_from: Annotated[str, Query()] = "",
+    registered_to: Annotated[str, Query()] = "",
 ) -> Response:
     if template != "users":
         raise HTTPException(status_code=400, detail="Поддерживается только шаблон users")
 
-    phone_digits_list = [d.strip() for d in phone_first_digits.split(",") if d.strip()]
-    if not phone_digits_list:
-        raise HTTPException(status_code=400, detail="Нужна хотя бы одна первая цифра для телефона")
-    for digit in phone_digits_list:
-        if digit not in "0123456789":
-            raise HTTPException(status_code=400, detail=f"Первая цифра должна быть 0-9, получено: {digit}")
+    country_codes_list = [c.strip() for c in country_codes.split(",") if c.strip()]
+    if not country_codes_list:
+        raise HTTPException(status_code=400, detail="Нужен хотя бы один код страны")
+    for code in country_codes_list:
+        if not code.isdigit() or not (1 <= len(code) <= 3):
+            raise HTTPException(status_code=400, detail=f"Код страны должен состоять из 1-3 цифр: {code}")
+        if code.startswith("0"):
+            raise HTTPException(status_code=400, detail=f"Код страны не может начинаться с 0: {code}")
+
+    phone_prefix = phone_prefix.strip()
+    if phone_prefix:
+        if not phone_prefix.isdigit():
+            raise HTTPException(status_code=400, detail="Префикс телефона должен состоять только из цифр")
+        if not (1 <= len(phone_prefix) <= 3):
+            raise HTTPException(status_code=400, detail="Префикс телефона должен содержать от 1 до 3 цифр")
     
     email_domains_list = [d.strip() for d in email_domains.split(",") if d.strip()]
     if not email_domains_list:
         raise HTTPException(status_code=400, detail="Нужен хотя бы один домен для email")
+    unsupported_domains = [d for d in email_domains_list if d not in ALLOWED_EMAIL_DOMAINS]
+    if unsupported_domains:
+        allowed = ", ".join(ALLOWED_EMAIL_DOMAINS)
+        raise HTTPException(
+            status_code=400,
+            detail=f"Недопустимые домены: {', '.join(unsupported_domains)}. Разрешены: {allowed}",
+        )
 
-    content = generate_users_csv(rows, phone_first_digits=phone_digits_list, email_domains=email_domains_list)
+    registered_from_date: date | None = None
+    if registered_from.strip():
+        try:
+            registered_from_date = date.fromisoformat(registered_from.strip())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail='Дата "с" должна быть в формате YYYY-MM-DD') from exc
+
+    registered_to_date: date | None = None
+    if registered_to.strip():
+        try:
+            registered_to_date = date.fromisoformat(registered_to.strip())
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail='Дата "по" должна быть в формате YYYY-MM-DD') from exc
+
+    if registered_to_date and registered_to_date > date.today():
+        raise HTTPException(status_code=400, detail='Дата "по" не может быть в будущем')
+    if registered_from_date and registered_from_date > date.today():
+        raise HTTPException(status_code=400, detail='Дата "с" не может быть в будущем')
+    if registered_from_date and registered_to_date and registered_from_date > registered_to_date:
+        raise HTTPException(status_code=400, detail='Дата "с" не может быть больше даты "по"')
+
+    content = generate_users_csv(
+        rows,
+        country_codes=country_codes_list,
+        phone_prefix=phone_prefix or None,
+        email_domains=email_domains_list,
+        registered_from=registered_from_date,
+        registered_to=registered_to_date,
+    )
     filename = generated_filename("users")
     headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
     return Response(content=content, media_type="text/csv; charset=utf-8", headers=headers)

@@ -3,57 +3,73 @@ from __future__ import annotations
 import csv
 import io
 import random
+import string
+from datetime import date
 from datetime import datetime
+from datetime import timedelta
 from typing import Sequence
 
 from faker import Faker
 
 
 DEFAULT_EMAIL_DOMAINS = ["yandex.ru", "mail.ru", "rambler.ru", "gmail.com", "microsoft.com"]
-DEFAULT_PHONE_FIRST_DIGITS = [str(i) for i in range(10)]  # 0-9
-VALID_PHONE_FIRST_DIGITS = [str(i) for i in range(10)]  # 0-9
+ALLOWED_EMAIL_DOMAINS = tuple(DEFAULT_EMAIL_DOMAINS)
+DEFAULT_COUNTRY_CODE = "7"
 
 
-def generate_phone(first_digit: str) -> str:
-    """Generate phone in format +7{first_digit}XXXXXXXX (11 digits total)."""
-    remaining = "".join(str(random.randint(0, 9)) for _ in range(8))
-    return f"+7{first_digit}{remaining}"
+def generate_phone(country_code: str, prefix: str) -> str:
+    """Generate phone in format +<country_code><10 digits> using custom prefix (1..3 digits)."""
+    total_national_digits = 10
+    remaining_len = total_national_digits - len(prefix)
+    remaining = "".join(str(random.randint(0, 9)) for _ in range(remaining_len))
+    return f"+{country_code}{prefix}{remaining}"
 
 
-def generate_email(name: str, domains: Sequence[str]) -> str:
-    """Generate email with chosen domain."""
+def generate_email(domains: Sequence[str]) -> str:
+    """Generate email with ASCII-only local part and chosen domain."""
     if not domains:
         domains = DEFAULT_EMAIL_DOMAINS
     domain = random.choice(list(domains))
-    # Use first part of name to avoid collisions
-    name_part = name.split()[0].lower() if name else "user"
-    return f"{name_part}{random.randint(1000, 9999)}@{domain}"
+    local_part = "".join(random.choice(string.ascii_lowercase) for _ in range(8))
+    return f"{local_part}{random.randint(1000, 9999)}@{domain}"
 
 
 def generate_users_csv(
     rows: int,
-    phone_first_digits: Sequence[str] | None = None,
+    country_codes: Sequence[str] | None = None,
+    phone_prefix: str | None = None,
     email_domains: Sequence[str] | None = None,
+    registered_from: date | None = None,
+    registered_to: date | None = None,
 ) -> str:
     fake = Faker("ru_RU")
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["full_name", "email", "phone", "city", "registered_at"])
 
-    if phone_first_digits is None:
-        phone_first_digits = DEFAULT_PHONE_FIRST_DIGITS
+    if not country_codes:
+        country_codes = [DEFAULT_COUNTRY_CODE]
     if email_domains is None:
         email_domains = DEFAULT_EMAIL_DOMAINS
+    if registered_to is None:
+        registered_to = date.today()
+    if registered_from is None:
+        registered_from = registered_to - timedelta(days=365 * 10)
 
     for _ in range(rows):
         name = fake.name()
+        row_phone_prefix = phone_prefix
+        if not row_phone_prefix:
+            dynamic_prefix_len = random.randint(1, 3)
+            row_phone_prefix = "".join(str(random.randint(0, 9)) for _ in range(dynamic_prefix_len))
+
         writer.writerow(
             [
                 name,
-                generate_email(name, email_domains),
-                generate_phone(random.choice(list(phone_first_digits))),
+                generate_email(email_domains),
+                generate_phone(random.choice(list(country_codes)), row_phone_prefix),
                 fake.city(),
-                fake.date_between(start_date="-2y", end_date="today").isoformat(),
+                fake.date_between_dates(date_start=registered_from, date_end=registered_to).isoformat(),
             ]
         )
 

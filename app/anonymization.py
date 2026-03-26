@@ -32,10 +32,15 @@ def mask_phone(value: str) -> str:
 
 
 def mask_name(value: str) -> str:
-    """Mask name/surname: show first character, replace rest with *."""
+    """Mask full name: keep first letter of each word and replace the rest with *."""
     value = value.strip()
     if not value:
         return value
+
+    parts = [part for part in value.split() if part]
+    if len(parts) >= 1:
+        return " ".join(part[0] + "*" * (len(part) - 1) for part in parts)
+
     return value[0] + "*" * (len(value) - 1)
 
 
