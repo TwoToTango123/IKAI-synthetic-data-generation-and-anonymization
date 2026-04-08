@@ -1,46 +1,56 @@
-# Python bytecode and cache
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-
-# Virtual environments
-.venv/
-venv/
-env/
-
-# Test and coverage artifacts
+.Python
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.hypothesis/
+.tox/
+.nox/
 .coverage
 .coverage.*
 htmlcov/
-
-# Build and distribution artifacts
 build/
 dist/
+site/
+.eggs/
+*.egg
 *.egg-info/
+pip-wheel-metadata/
+.venv/
+venv/
+env/
+ENV/
+.ipynb_checkpoints/
 
-# IDE/editor settings
-.vscode/
-.idea/
+# Environment and local settings
+.env
+.env.*
+!.env.example
+!.env.sample
 
-# OS files
-.DS_Store
-Thumbs.db
-
-# Frontend dependencies and build artifacts
+# React / Node
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-
-# Common frontend framework outputs
+.pnpm-store/
+.npm/
+.yarn/
+.parcel-cache/
 .next/
 .nuxt/
 .svelte-kit/
-.vite/
 coverage/
+*.tsbuildinfo
+vite.svg
 
-# Frontend environment files
-frontend/.env
-frontend/.env.*
+# OS / editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
