@@ -8,7 +8,7 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 
 from app.anonymization import anonymize_csv_email_mask
-from app.generation import ALLOWED_EMAIL_DOMAINS, generate_users_csv, generated_filename
+from app.generation import ALLOWED_EMAIL_DOMAINS, generate_users_csv, generate_orders_csv, generated_filename
 from app.schema_validation import validate_payload
 
 app = FastAPI(title="Synthetic CSV Generator")
@@ -34,9 +34,16 @@ def generate(
     registered_from: Annotated[str, Query()] = "",
     registered_to: Annotated[str, Query()] = "",
 ) -> Response:
-    if template != "users":
-        raise HTTPException(status_code=400, detail="Поддерживается только шаблон users")
+    if template not in ("users", "orders"):
+        raise HTTPException(status_code=400, detail="Шаблон должен быть users или orders")
 
+    if template == "orders":
+        content = generate_orders_csv(rows)
+        filename = generated_filename("orders")
+        headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+        return Response(content=content, media_type="text/csv; charset=utf-8", headers=headers)
+
+    # Генерация шаблона users
     country_codes_list = [c.strip() for c in country_codes.split(",") if c.strip()]
     if not country_codes_list:
         raise HTTPException(status_code=400, detail="Нужен хотя бы один код страны")
@@ -101,9 +108,16 @@ def generate(
 @app.post("/anonymize")
 async def anonymize(
     file: Annotated[UploadFile, File(...)],
+    method: Annotated[str, Form()] = "masking",
+    target_columns: Annotated[str, Form()] = "",
+    remove_mode: Annotated[str, Form()] = "empty",
+    pseudonym_salt: Annotated[str, Form()] = "",
     email_columns: Annotated[str, Form()] = "",
     phone_columns: Annotated[str, Form()] = "",
     name_columns: Annotated[str, Form()] = "",
+    digits_columns: Annotated[str, Form()] = "",
+    date_columns: Annotated[str, Form()] = "",
+    numeric_columns: Annotated[str, Form()] = "",
 ) -> Response:
     if not file.filename:
         raise HTTPException(status_code=400, detail="Не передано имя файла")
@@ -124,15 +138,42 @@ async def anonymize(
     email_cols = [c.strip() for c in email_columns.split(",") if c.strip()]
     phone_cols = [c.strip() for c in phone_columns.split(",") if c.strip()]
     name_cols = [c.strip() for c in name_columns.split(",") if c.strip()]
+    digits_cols = [c.strip() for c in digits_columns.split(",") if c.strip()]
+    date_cols = [c.strip() for c in date_columns.split(",") if c.strip()]
+    numeric_cols = [c.strip() for c in numeric_columns.split(",") if c.strip()]
+    target_cols = [c.strip() for c in target_columns.split(",") if c.strip()]
+
+    allowed_methods = {"masking", "pseudonymization", "remove"}
+    if method not in allowed_methods:
+        raise HTTPException(status_code=400, detail="Метод должен быть masking, pseudonymization или remove")
 
     try:
         from app.anonymization import anonymize_csv_with_masks
-        content = anonymize_csv_with_masks(
-            text,
-            email_columns=email_cols,
-            phone_columns=phone_cols,
-            name_columns=name_cols,
-        )
+        from app.anonymization import anonymize_csv_with_pseudonyms
+        from app.anonymization import anonymize_csv_with_removal
+
+        if method == "masking":
+            content = anonymize_csv_with_masks(
+                text,
+                email_columns=email_cols,
+                phone_columns=phone_cols,
+                name_columns=name_cols,
+                digits_columns=digits_cols,
+                date_columns=date_cols,
+                numeric_columns=numeric_cols,
+            )
+        elif method == "pseudonymization":
+            content = anonymize_csv_with_pseudonyms(
+                text,
+                target_columns=target_cols,
+                salt=pseudonym_salt,
+            )
+        else:
+            content = anonymize_csv_with_removal(
+                text,
+                target_columns=target_cols,
+                mode=remove_mode,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

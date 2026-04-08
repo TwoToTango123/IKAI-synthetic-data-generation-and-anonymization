@@ -76,6 +76,31 @@ def generate_users_csv(
     return output.getvalue()
 
 
+def generate_orders_csv(
+    rows: int,
+    user_id_start: int = 1,
+) -> str:
+    fake = Faker("ru_RU")
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["order_id", "user_id", "date", "amount", "status"])
+
+    statuses = ["new", "paid", "processing", "completed", "cancelled"]
+    today = date.today()
+    start_date = today - timedelta(days=365)
+
+    for i in range(rows):
+        order_id = i + 1
+        user_id = random.randint(user_id_start, user_id_start + 1000)
+        order_date = fake.date_between_dates(date_start=start_date, date_end=today).isoformat()
+        amount = round(random.uniform(10.0, 1000.0), 2)
+        status = random.choice(statuses)
+
+        writer.writerow([order_id, user_id, order_date, amount, status])
+
+    return output.getvalue()
+
+
 def generated_filename(prefix: str) -> str:
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
     return f"{prefix}_{ts}.csv"

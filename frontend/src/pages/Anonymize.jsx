@@ -4,18 +4,70 @@ import { anonymizeData } from '../services/api'
 
 const TEMPLATE_COLUMNS = {
   users: ['full_name', 'email', 'phone'],
-  orders: [],
+  orders: ['user_id', 'date', 'amount'],
 }
 
 const DEFAULT_SELECTION = {
   users: ['full_name', 'email', 'phone'],
-  orders: [],
+  orders: ['user_id', 'date', 'amount'],
+}
+
+const COLUMN_TYPES = {
+  users: {
+    full_name: 'name',
+    email: 'email',
+    phone: 'phone',
+  },
+  orders: {
+    user_id: 'digits',
+    date: 'date',
+    amount: 'numeric',
+  },
+}
+
+const ANONYMIZATION_METHODS = {
+  MASKING: 'masking',
+  PSEUDONYMIZATION: 'pseudonymization',
+  REMOVE: 'remove',
+}
+
+const parseCsvHeaderLine = (line) => {
+  const headers = []
+  let current = ''
+  let inQuotes = false
+
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i]
+    if (ch === '"') {
+      if (inQuotes && line[i + 1] === '"') {
+        current += '"'
+        i += 1
+      } else {
+        inQuotes = !inQuotes
+      }
+      continue
+    }
+
+    if (ch === ',' && !inQuotes) {
+      headers.push(current.trim())
+      current = ''
+      continue
+    }
+
+    current += ch
+  }
+
+  headers.push(current.trim())
+  return headers.filter((h) => h)
 }
 
 function Anonymize() {
   const [template, setTemplate] = useState('users')
   const [selectedColumns, setSelectedColumns] = useState(DEFAULT_SELECTION.users)
   const [file, setFile] = useState(null)
+  const [method, setMethod] = useState(ANONYMIZATION_METHODS.MASKING)
+  const [removeMode, setRemoveMode] = useState('empty')
+  const [csvHeaders, setCsvHeaders] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -28,6 +80,17 @@ function Anonymize() {
     setError('')
   }
 
+  const handleMethodChange = (event) => {
+    const nextMethod = event.target.value
+    setMethod(nextMethod)
+    if (nextMethod === ANONYMIZATION_METHODS.MASKING) {
+      setSelectedColumns(DEFAULT_SELECTION[template] || [])
+    } else {
+      setSelectedColumns([])
+    }
+    setError('')
+  }
+
   const toggleColumn = (column) => {
     setSelectedColumns((prev) => {
       if (prev.includes(column)) {
@@ -37,19 +100,26 @@ function Anonymize() {
     })
   }
 
-  const handleFileUpload = (uploadedFile) => {
+  const handleFileUpload = async (uploadedFile) => {
     setFile(uploadedFile)
     setError('')
+
+    try {
+      const text = await uploadedFile.text()
+      const firstLine = (text.split(/\r?\n/)[0] || '').trim()
+      const headers = parseCsvHeaderLine(firstLine)
+      setCsvHeaders(headers)
+      if (method !== ANONYMIZATION_METHODS.MASKING) {
+        setSelectedColumns([])
+      }
+    } catch {
+      setCsvHeaders([])
+    }
   }
 
   const handleAnonymize = async () => {
     if (!file) {
       setError('Пожалуйста, загрузите CSV файл')
-      return
-    }
-
-    if (template !== 'users') {
-      setError('Для шаблона orders анонимизация колонок пока не настроена')
       return
     }
 
@@ -63,19 +133,40 @@ function Anonymize() {
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('method', method)
 
-      const emailColumns = selectedColumns.filter((col) => col === 'email')
-      const phoneColumns = selectedColumns.filter((col) => col === 'phone')
-      const nameColumns = selectedColumns.filter((col) => col !== 'email' && col !== 'phone')
+      if (method === ANONYMIZATION_METHODS.MASKING) {
+        const columnTypes = COLUMN_TYPES[template] || {}
+        const emailColumns = selectedColumns.filter((col) => columnTypes[col] === 'email')
+        const phoneColumns = selectedColumns.filter((col) => columnTypes[col] === 'phone')
+        const nameColumns = selectedColumns.filter((col) => columnTypes[col] === 'name')
+        const digitsColumns = selectedColumns.filter((col) => columnTypes[col] === 'digits')
+        const dateColumns = selectedColumns.filter((col) => columnTypes[col] === 'date')
+        const numericColumns = selectedColumns.filter((col) => columnTypes[col] === 'numeric')
 
-      if (emailColumns.length > 0) {
-        formData.append('email_columns', emailColumns.join(','))
-      }
-      if (phoneColumns.length > 0) {
-        formData.append('phone_columns', phoneColumns.join(','))
-      }
-      if (nameColumns.length > 0) {
-        formData.append('name_columns', nameColumns.join(','))
+        if (emailColumns.length > 0) {
+          formData.append('email_columns', emailColumns.join(','))
+        }
+        if (phoneColumns.length > 0) {
+          formData.append('phone_columns', phoneColumns.join(','))
+        }
+        if (nameColumns.length > 0) {
+          formData.append('name_columns', nameColumns.join(','))
+        }
+        if (digitsColumns.length > 0) {
+          formData.append('digits_columns', digitsColumns.join(','))
+        }
+        if (dateColumns.length > 0) {
+          formData.append('date_columns', dateColumns.join(','))
+        }
+        if (numericColumns.length > 0) {
+          formData.append('numeric_columns', numericColumns.join(','))
+        }
+      } else {
+        formData.append('target_columns', selectedColumns.join(','))
+        if (method === ANONYMIZATION_METHODS.REMOVE) {
+          formData.append('remove_mode', removeMode)
+        }
       }
 
       const blob = await anonymizeData(formData)
@@ -110,23 +201,57 @@ function Anonymize() {
       {!file && <FileUpload onFileUpload={handleFileUpload} />}
 
       <div className="form-group">
+        <label className="form-label">Способ анонимизации:</label>
+        <select className="form-select" value={method} onChange={handleMethodChange}>
+          <option value={ANONYMIZATION_METHODS.MASKING}>Маскирование</option>
+          <option value={ANONYMIZATION_METHODS.PSEUDONYMIZATION}>Псевдонимизация</option>
+          <option value={ANONYMIZATION_METHODS.REMOVE}>Удаление/пустое</option>
+        </select>
+      </div>
+
+      <div className="form-group">
         <label className="form-label">Шаблон для выбора колонок:</label>
-        <select className="form-select" value={template} onChange={handleTemplateChange}>
+        <select
+          className="form-select"
+          value={template}
+          onChange={handleTemplateChange}
+          disabled={method !== ANONYMIZATION_METHODS.MASKING}
+        >
           <option value="users">users</option>
           <option value="orders">orders</option>
         </select>
       </div>
 
+      {method === ANONYMIZATION_METHODS.REMOVE && (
+        <div className="form-group">
+          <label className="form-label">Что делать с выбранными колонками:</label>
+          <select className="form-select" value={removeMode} onChange={(e) => setRemoveMode(e.target.value)}>
+            <option value="empty">Оставить колонку, но очистить значения</option>
+            <option value="drop">Удалить колонку полностью</option>
+          </select>
+        </div>
+      )}
+
       <div className="form-group">
         <label className="form-label">Колонки для анонимизации:</label>
-        {columns.length === 0 ? (
+        {method !== ANONYMIZATION_METHODS.MASKING && !file ? (
           <div className="alert alert-info">
             <span className="alert-icon">i</span>
-            <div>Для шаблона orders список колонок пока не настроен</div>
+            <div>Загрузите CSV, чтобы увидеть список колонок файла</div>
+          </div>
+        ) : method !== ANONYMIZATION_METHODS.MASKING && csvHeaders.length === 0 ? (
+          <div className="alert alert-info">
+            <span className="alert-icon">i</span>
+            <div>Не удалось прочитать заголовок CSV</div>
+          </div>
+        ) : (method === ANONYMIZATION_METHODS.MASKING ? columns : csvHeaders).length === 0 ? (
+          <div className="alert alert-info">
+            <span className="alert-icon">i</span>
+            <div>Нет колонок для анонимизации в этом шаблоне</div>
           </div>
         ) : (
           <div className="checkbox-group">
-            {columns.map((column) => (
+            {(method === ANONYMIZATION_METHODS.MASKING ? columns : csvHeaders).map((column) => (
               <div className="checkbox-item" key={column}>
                 <input
                   id={`col-${column}`}
