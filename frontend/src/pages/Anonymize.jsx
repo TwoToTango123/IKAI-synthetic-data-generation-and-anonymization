@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import FileUpload from '../components/FileUpload'
-import { anonymizeData } from '../services/api'
+import { anonymizeData, getCsvHeaders } from '../services/api'
 
 const TEMPLATE_COLUMNS = {
   users: ['full_name', 'email', 'phone'],
@@ -31,42 +31,13 @@ const ANONYMIZATION_METHODS = {
   REMOVE: 'remove',
 }
 
-const parseCsvHeaderLine = (line) => {
-  const headers = []
-  let current = ''
-  let inQuotes = false
-
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i]
-    if (ch === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"'
-        i += 1
-      } else {
-        inQuotes = !inQuotes
-      }
-      continue
-    }
-
-    if (ch === ',' && !inQuotes) {
-      headers.push(current.trim())
-      current = ''
-      continue
-    }
-
-    current += ch
-  }
-
-  headers.push(current.trim())
-  return headers.filter((h) => h)
-}
-
 function Anonymize() {
   const [template, setTemplate] = useState('users')
   const [selectedColumns, setSelectedColumns] = useState(DEFAULT_SELECTION.users)
   const [file, setFile] = useState(null)
   const [method, setMethod] = useState(ANONYMIZATION_METHODS.MASKING)
   const [removeMode, setRemoveMode] = useState('empty')
+  const [pseudonymSalt, setPseudonymSalt] = useState('')
   const [csvHeaders, setCsvHeaders] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -85,6 +56,8 @@ function Anonymize() {
     setMethod(nextMethod)
     if (nextMethod === ANONYMIZATION_METHODS.MASKING) {
       setSelectedColumns(DEFAULT_SELECTION[template] || [])
+    } else if (csvHeaders.length > 0) {
+      setSelectedColumns(csvHeaders)
     } else {
       setSelectedColumns([])
     }
@@ -105,12 +78,10 @@ function Anonymize() {
     setError('')
 
     try {
-      const text = await uploadedFile.text()
-      const firstLine = (text.split(/\r?\n/)[0] || '').trim()
-      const headers = parseCsvHeaderLine(firstLine)
+      const headers = await getCsvHeaders(uploadedFile)
       setCsvHeaders(headers)
       if (method !== ANONYMIZATION_METHODS.MASKING) {
-        setSelectedColumns([])
+        setSelectedColumns(headers)
       }
     } catch {
       setCsvHeaders([])
@@ -164,6 +135,9 @@ function Anonymize() {
         }
       } else {
         formData.append('target_columns', selectedColumns.join(','))
+        if (method === ANONYMIZATION_METHODS.PSEUDONYMIZATION && pseudonymSalt.trim()) {
+          formData.append('pseudonym_salt', pseudonymSalt.trim())
+        }
         if (method === ANONYMIZATION_METHODS.REMOVE) {
           formData.append('remove_mode', removeMode)
         }
@@ -205,9 +179,33 @@ function Anonymize() {
         <select className="form-select" value={method} onChange={handleMethodChange}>
           <option value={ANONYMIZATION_METHODS.MASKING}>Маскирование</option>
           <option value={ANONYMIZATION_METHODS.PSEUDONYMIZATION}>Псевдонимизация</option>
-          <option value={ANONYMIZATION_METHODS.REMOVE}>Удаление/пустое</option>
+          <option value={ANONYMIZATION_METHODS.REMOVE}>Удаление/замена на пустое</option>
         </select>
+        <div className="alert alert-info" style={{ marginTop: '0.75rem' }}>
+          <span className="alert-icon">i</span>
+          <div>
+            {method === ANONYMIZATION_METHODS.MASKING && 'Маскирование: частично скрывает значения по типу колонки (email/телефон/дата и т.д.).'}
+            {method === ANONYMIZATION_METHODS.PSEUDONYMIZATION && 'Псевдонимизация: заменяет исходные значения на стабильные псевдонимы (одинаковые значения -> одинаковый псевдоним).'}
+            {method === ANONYMIZATION_METHODS.REMOVE && 'Удаление/замена на пустое: выберите отдельные колонки из файла, затем очистите их значения или удалите полностью.'}
+          </div>
+        </div>
       </div>
+
+      {method === ANONYMIZATION_METHODS.PSEUDONYMIZATION && (
+        <div className="form-group">
+          <label className="form-label">Секретный ключ для псевдонимизации (необязательно):</label>
+          <input
+            type="text"
+            className="form-input"
+            value={pseudonymSalt}
+            onChange={(e) => setPseudonymSalt(e.target.value)}
+            placeholder="Например: project-2026-secret"
+          />
+          <div className="form-help" style={{ marginTop: '0.5rem' }}>
+            Один и тот же ключ дает одинаковые псевдонимы для одинаковых значений. Можно оставить пустым.
+          </div>
+        </div>
+      )}
 
       <div className="form-group">
         <label className="form-label">Шаблон для выбора колонок:</label>

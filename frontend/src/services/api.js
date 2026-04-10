@@ -69,4 +69,21 @@ export const anonymizeData = async (formData) => {
   }
 }
 
+export const getCsvHeaders = async (file) => {
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const response = await api.post('/csv-headers', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+
+    return response.data?.headers || []
+  } catch (error) {
+    throw new Error(await extractErrorMessage(error, 'Не удалось прочитать заголовок CSV'))
+  }
+}
+
 export default api

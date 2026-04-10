@@ -54,29 +54,48 @@ def mask_digits(value: str) -> str:
 
 
 def mask_date(value: str) -> str:
-    """Mask date: show year only (YYYY)."""
+    """Mask date: keep year and replace remaining digits with *."""
     value = value.strip()
     if not value:
         return value
-    # Assume ISO format (YYYY-MM-DD) or just return first 4 chars
-    if len(value) >= 4:
-        return value[:4]
-    return value
+
+    # For ISO dates like YYYY-MM-DD return YYYY-**-**
+    if len(value) >= 10 and value[4] == "-" and value[7] == "-":
+        return f"{value[:4]}-**-**"
+
+    # Generic fallback: keep first 4 chars, mask the rest preserving separators.
+    result = []
+    for i, ch in enumerate(value):
+        if i < 4:
+            result.append(ch)
+        elif ch.isalnum():
+            result.append("*")
+        else:
+            result.append(ch)
+    return "".join(result)
 
 
 def mask_numeric(value: str) -> str:
-    """Mask numeric amount: round to nearest 100 and show range."""
+    """Mask numeric amount: keep first digit, replace remaining digits with *."""
     value = value.strip()
     if not value:
         return value
-    try:
-        num = float(value)
-        # Round to nearest 100
-        lower = (int(num) // 100) * 100
-        upper = lower + 100
-        return f"{lower}-{upper}"
-    except ValueError:
+
+    first_digit_seen = False
+    masked = []
+    for ch in value:
+        if ch.isdigit():
+            if not first_digit_seen:
+                masked.append(ch)
+                first_digit_seen = True
+            else:
+                masked.append("*")
+        else:
+            masked.append(ch)
+
+    if not first_digit_seen:
         return "***"
+    return "".join(masked)
 
 
 
@@ -145,14 +164,47 @@ def anonymize_csv_email_mask(content: str, target_columns: Iterable[str]) -> str
     return anonymize_csv_with_masks(content, email_columns=target_columns)
 
 
-def _validate_target_columns(fields: list[str], target_columns: Iterable[str] | None) -> set[str]:
+def _normalize_fieldnames(fieldnames: list[str] | None) -> list[str]:
+    return [name.strip() for name in (fieldnames or []) if name and name.strip()]
+
+
+def _detect_best_delimiter(cleaned_content: str, target_columns: set[str] | None = None) -> str:
+    candidates = [",", ";", "\t", "|"]
+    best_delimiter = ","
+    best_score = (-1, -1)
+
+    for delimiter in candidates:
+        reader = csv.DictReader(io.StringIO(cleaned_content), delimiter=delimiter)
+        fields = _normalize_fieldnames(reader.fieldnames)
+        if not fields:
+            continue
+
+        matched = len(set(fields) & (target_columns or set()))
+        score = (matched, len(fields))
+        if score > best_score:
+            best_score = score
+            best_delimiter = delimiter
+
+    return best_delimiter
+
+
+def _read_csv_dict_reader(content: str, target_columns: set[str] | None = None) -> csv.DictReader[str]:
+    cleaned_content = content.lstrip("\ufeff")
+    delimiter = _detect_best_delimiter(cleaned_content, target_columns)
+    return csv.DictReader(io.StringIO(cleaned_content), delimiter=delimiter)
+
+
+def extract_csv_headers(content: str, target_columns: Iterable[str] | None = None) -> list[str]:
+    """Extract CSV headers using the same delimiter detection as anonymization."""
+    target_cols = {name.strip() for name in (target_columns or []) if name.strip()}
+    reader = _read_csv_dict_reader(content, target_cols)
+    return [name.strip() for name in (reader.fieldnames or []) if name and name.strip()]
+
+
+def _normalize_target_columns(target_columns: Iterable[str] | None) -> set[str]:
     cols = {name.strip() for name in (target_columns or []) if name.strip()}
     if not cols:
         raise ValueError("Выберите хотя бы одну колонку")
-
-    unknown = [name for name in cols if name not in fields]
-    if unknown:
-        raise ValueError(f"Неизвестные колонки: {', '.join(sorted(unknown))}")
 
     return cols
 
@@ -172,15 +224,13 @@ def anonymize_csv_with_pseudonyms(
     salt: str = "",
 ) -> str:
     """Deterministic pseudonymization for selected columns."""
-    source = io.StringIO(content)
-    reader = csv.DictReader(source)
+    target_cols = _normalize_target_columns(target_columns)
+    reader = _read_csv_dict_reader(content, target_cols)
 
     if reader.fieldnames is None:
         raise ValueError("CSV не содержит заголовок")
 
     fields = [name.strip() for name in reader.fieldnames]
-    target_cols = _validate_target_columns(fields, target_columns)
-
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=fields)
     writer.writeheader()
@@ -189,6 +239,8 @@ def anonymize_csv_with_pseudonyms(
     for row in reader:
         row_count += 1
         for col in target_cols:
+            if col not in fields:
+                continue
             row[col] = _pseudonymize_value(col, row.get(col, ""), salt=salt)
         writer.writerow(row)
 
@@ -204,15 +256,13 @@ def anonymize_csv_with_removal(
     mode: str = "empty",
 ) -> str:
     """Remove selected columns or replace their values with empty strings."""
-    source = io.StringIO(content)
-    reader = csv.DictReader(source)
+    target_cols = _normalize_target_columns(target_columns)
+    reader = _read_csv_dict_reader(content, target_cols)
 
     if reader.fieldnames is None:
         raise ValueError("CSV не содержит заголовок")
 
     fields = [name.strip() for name in reader.fieldnames]
-    target_cols = _validate_target_columns(fields, target_columns)
-
     if mode not in {"empty", "drop"}:
         raise ValueError("Режим удаления должен быть 'empty' или 'drop'")
 
@@ -233,6 +283,8 @@ def anonymize_csv_with_removal(
             writer.writerow(filtered)
         else:
             for col in target_cols:
+                if col not in fields:
+                    continue
                 row[col] = ""
             writer.writerow({key: row.get(key, "") for key in output_fields})
 

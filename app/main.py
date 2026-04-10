@@ -8,6 +8,7 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 
 from app.anonymization import anonymize_csv_email_mask
+from app.anonymization import extract_csv_headers
 from app.generation import ALLOWED_EMAIL_DOMAINS, generate_users_csv, generate_orders_csv, generated_filename
 from app.schema_validation import validate_payload
 
@@ -191,3 +192,28 @@ def validate_json(
         return validate_payload(template, payload)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@app.post("/csv-headers")
+async def csv_headers(file: Annotated[UploadFile, File(...)]) -> dict[str, list[str]]:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Не передано имя файла")
+
+    if not file.filename.lower().endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Нужен CSV-файл")
+
+    raw = await file.read()
+    if not raw.strip():
+        raise HTTPException(status_code=400, detail="Файл пустой")
+
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="Файл должен быть в UTF-8") from exc
+
+    try:
+        headers = extract_csv_headers(text)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"headers": headers}
