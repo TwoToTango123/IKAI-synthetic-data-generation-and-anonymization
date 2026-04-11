@@ -45,6 +45,14 @@ def mask_name(value: str) -> str:
     return value[0] + "*" * (len(value) - 1)
 
 
+def mask_city(value: str) -> str:
+    """Mask city: replace all characters with *."""
+    value = value.strip()
+    if not value:
+        return value
+    return "*" * len(value)
+
+
 def mask_digits(value: str) -> str:
     """Mask numeric value: keep first digit and replace rest with *."""
     value = value.strip()
@@ -104,6 +112,7 @@ def anonymize_csv_with_masks(
     email_columns: Iterable[str] | None = None,
     phone_columns: Iterable[str] | None = None,
     name_columns: Iterable[str] | None = None,
+    city_columns: Iterable[str] | None = None,
     digits_columns: Iterable[str] | None = None,
     date_columns: Iterable[str] | None = None,
     numeric_columns: Iterable[str] | None = None,
@@ -119,12 +128,13 @@ def anonymize_csv_with_masks(
     email_cols = {name.strip() for name in (email_columns or []) if name.strip()}
     phone_cols = {name.strip() for name in (phone_columns or []) if name.strip()}
     name_cols = {name.strip() for name in (name_columns or []) if name.strip()}
+    city_cols = {name.strip() for name in (city_columns or []) if name.strip()}
     digits_cols = {name.strip() for name in (digits_columns or []) if name.strip()}
     date_cols = {name.strip() for name in (date_columns or []) if name.strip()}
     numeric_cols = {name.strip() for name in (numeric_columns or []) if name.strip()}
 
     # Check for unknown columns
-    all_target_cols = email_cols | phone_cols | name_cols | digits_cols | date_cols | numeric_cols
+    all_target_cols = email_cols | phone_cols | name_cols | city_cols | digits_cols | date_cols | numeric_cols
     unknown = [name for name in all_target_cols if name not in fields]
     if unknown:
         raise ValueError(f"Неизвестные колонки: {', '.join(sorted(unknown))}")
@@ -145,6 +155,8 @@ def anonymize_csv_with_masks(
             row[col] = mask_phone(row.get(col, ""))
         for col in name_cols:
             row[col] = mask_name(row.get(col, ""))
+        for col in city_cols:
+            row[col] = mask_city(row.get(col, ""))
         for col in digits_cols:
             row[col] = mask_digits(row.get(col, ""))
         for col in date_cols:
@@ -188,10 +200,45 @@ def _detect_best_delimiter(cleaned_content: str, target_columns: set[str] | None
     return best_delimiter
 
 
+def _unwrap_outer_quotes(value: str) -> str:
+    unwrapped = value
+    while len(unwrapped) >= 2 and unwrapped.startswith('"') and unwrapped.endswith('"'):
+        unwrapped = unwrapped[1:-1].replace('""', '"')
+    return unwrapped
+
+
+def _detect_inner_delimiter_for_packed_line(line: str) -> str | None:
+    candidates = [",", ";", "\t", "|"]
+    best_delimiter = None
+    best_count = 1
+    for delimiter in candidates:
+        count = len([part for part in line.split(delimiter)])
+        if count > best_count:
+            best_count = count
+            best_delimiter = delimiter
+    return best_delimiter if best_count > 1 else None
+
+
 def _read_csv_dict_reader(content: str, target_columns: set[str] | None = None) -> csv.DictReader[str]:
     cleaned_content = content.lstrip("\ufeff")
     delimiter = _detect_best_delimiter(cleaned_content, target_columns)
-    return csv.DictReader(io.StringIO(cleaned_content), delimiter=delimiter)
+    reader = csv.DictReader(io.StringIO(cleaned_content), delimiter=delimiter)
+
+    fields = _normalize_fieldnames(reader.fieldnames)
+    if len(fields) == 1:
+        packed_header = _unwrap_outer_quotes(fields[0])
+        inner_delimiter = _detect_inner_delimiter_for_packed_line(packed_header)
+        if inner_delimiter:
+            normalized_lines = []
+            for raw_line in cleaned_content.splitlines():
+                stripped = raw_line.strip()
+                if not stripped:
+                    continue
+                normalized_lines.append(_unwrap_outer_quotes(stripped))
+            normalized_content = "\n".join(normalized_lines)
+            return csv.DictReader(io.StringIO(normalized_content), delimiter=inner_delimiter)
+
+    return reader
 
 
 def extract_csv_headers(content: str, target_columns: Iterable[str] | None = None) -> list[str]:

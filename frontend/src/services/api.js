@@ -34,7 +34,20 @@ const extractErrorMessage = async (error, fallbackMessage) => {
 }
 
 // Генерация данных
-export const generateData = async ({ rows, template = 'users', countryCodes, phonePrefix, emailDomains, registeredFrom, registeredTo }) => {
+export const generateData = async ({
+  rows,
+  template = 'users',
+  countryCodes,
+  phonePrefix,
+  emailDomains,
+  registeredFrom,
+  registeredTo,
+  orderDateFrom,
+  orderDateTo,
+  amountMin,
+  amountMax,
+  statuses,
+}) => {
   try {
     const response = await api.get('/generate', {
       params: {
@@ -45,6 +58,11 @@ export const generateData = async ({ rows, template = 'users', countryCodes, pho
         email_domains: emailDomains,
         registered_from: registeredFrom,
         registered_to: registeredTo,
+        order_date_from: orderDateFrom,
+        order_date_to: orderDateTo,
+        amount_min: amountMin,
+        amount_max: amountMax,
+        statuses,
       },
       responseType: 'blob',
     })

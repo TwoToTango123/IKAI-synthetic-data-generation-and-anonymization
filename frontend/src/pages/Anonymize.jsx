@@ -3,12 +3,12 @@ import FileUpload from '../components/FileUpload'
 import { anonymizeData, getCsvHeaders } from '../services/api'
 
 const TEMPLATE_COLUMNS = {
-  users: ['full_name', 'email', 'phone'],
+  users: ['full_name', 'email', 'phone', 'city'],
   orders: ['user_id', 'date', 'amount'],
 }
 
 const DEFAULT_SELECTION = {
-  users: ['full_name', 'email', 'phone'],
+  users: ['full_name', 'email', 'phone', 'city'],
   orders: ['user_id', 'date', 'amount'],
 }
 
@@ -17,6 +17,7 @@ const COLUMN_TYPES = {
     full_name: 'name',
     email: 'email',
     phone: 'phone',
+    city: 'city',
   },
   orders: {
     user_id: 'digits',
@@ -83,8 +84,10 @@ function Anonymize() {
       if (method !== ANONYMIZATION_METHODS.MASKING) {
         setSelectedColumns(headers)
       }
-    } catch {
+    } catch (err) {
       setCsvHeaders([])
+      const message = err?.message || 'Не удалось прочитать заголовки CSV'
+      setError(`Ошибка API: ${message}`)
     }
   }
 
@@ -111,6 +114,7 @@ function Anonymize() {
         const emailColumns = selectedColumns.filter((col) => columnTypes[col] === 'email')
         const phoneColumns = selectedColumns.filter((col) => columnTypes[col] === 'phone')
         const nameColumns = selectedColumns.filter((col) => columnTypes[col] === 'name')
+        const cityColumns = selectedColumns.filter((col) => columnTypes[col] === 'city')
         const digitsColumns = selectedColumns.filter((col) => columnTypes[col] === 'digits')
         const dateColumns = selectedColumns.filter((col) => columnTypes[col] === 'date')
         const numericColumns = selectedColumns.filter((col) => columnTypes[col] === 'numeric')
@@ -123,6 +127,9 @@ function Anonymize() {
         }
         if (nameColumns.length > 0) {
           formData.append('name_columns', nameColumns.join(','))
+        }
+        if (cityColumns.length > 0) {
+          formData.append('city_columns', cityColumns.join(','))
         }
         if (digitsColumns.length > 0) {
           formData.append('digits_columns', digitsColumns.join(','))
@@ -219,6 +226,29 @@ function Anonymize() {
           <option value="orders">orders</option>
         </select>
       </div>
+
+      {method === ANONYMIZATION_METHODS.MASKING && (
+        <div className="alert alert-info" style={{ marginBottom: '1rem' }}>
+          <span className="alert-icon">i</span>
+          <div>
+            <div><strong>Требования к CSV для маскирования:</strong></div>
+            <div>1. Первая строка должна содержать заголовки колонок.</div>
+            <div>2. Названия колонок должны точно совпадать с шаблоном.</div>
+            <div>3. Файл должен быть в формате CSV (UTF-8 или Windows-1251).</div>
+            {template === 'users' ? (
+              <>
+                <div>Ожидаемые колонки users: full_name, email, phone, city.</div>
+                <div>Формат данных: email вида name@domain, phone строка с цифрами и/или символами.</div>
+              </>
+            ) : (
+              <>
+                <div>Ожидаемые колонки orders: order_id, user_id, date, amount, status.</div>
+                <div>Формат данных: date желательно YYYY-MM-DD, amount числовое значение.</div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {method === ANONYMIZATION_METHODS.REMOVE && (
         <div className="form-group">

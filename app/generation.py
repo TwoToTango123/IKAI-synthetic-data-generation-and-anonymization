@@ -79,21 +79,39 @@ def generate_users_csv(
 def generate_orders_csv(
     rows: int,
     user_id_start: int = 1,
+    order_date_from: date | None = None,
+    order_date_to: date | None = None,
+    amount_min: float | None = None,
+    amount_max: float | None = None,
+    statuses: Sequence[str] | None = None,
 ) -> str:
     fake = Faker("ru_RU")
     output = io.StringIO()
     writer = csv.writer(output)
     writer.writerow(["order_id", "user_id", "date", "amount", "status"])
 
-    statuses = ["new", "paid", "processing", "completed", "cancelled"]
+    allowed_statuses = ["new", "paid", "processing", "completed", "cancelled"]
+    if statuses is None:
+        statuses = allowed_statuses
+
     today = date.today()
-    start_date = today - timedelta(days=365)
+    start_date = order_date_from or (today - timedelta(days=365))
+    end_date = order_date_to or today
+
+    min_amount = 10.0 if amount_min is None else amount_min
+    max_amount = 1000.0 if amount_max is None else amount_max
+
+    # IDs must be unique in each column and always have exactly 10 digits.
+    min_10_digit = 1_000_000_000
+    max_10_digit_exclusive = 10_000_000_000
+    order_ids = random.sample(range(min_10_digit, max_10_digit_exclusive), rows)
+    user_ids = random.sample(range(min_10_digit, max_10_digit_exclusive), rows)
 
     for i in range(rows):
-        order_id = i + 1
-        user_id = random.randint(user_id_start, user_id_start + 1000)
-        order_date = fake.date_between_dates(date_start=start_date, date_end=today).isoformat()
-        amount = round(random.uniform(10.0, 1000.0), 2)
+        order_id = order_ids[i]
+        user_id = user_ids[i]
+        order_date = fake.date_between_dates(date_start=start_date, date_end=end_date).isoformat()
+        amount = round(random.uniform(min_amount, max_amount), 2)
         status = random.choice(statuses)
 
         writer.writerow([order_id, user_id, order_date, amount, status])

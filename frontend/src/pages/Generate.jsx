@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { generateData } from '../services/api'
 
 const ALLOWED_DOMAINS = ['gmail.com', 'rambler.ru', 'mail.ru', 'yandex.ru', 'microsoft.com']
+const ORDER_STATUS_OPTIONS = ['new', 'paid', 'processing', 'completed', 'cancelled']
 const COUNTRY_CODE_OPTIONS = [
   { value: '1', label: '+1 (US/CA)' },
   { value: '7', label: '+7 (RU/KZ)' },
@@ -48,6 +49,13 @@ function Generate() {
   const [registeredTo, setRegisteredTo] = useState('')
   const [selectedCountryCodes, setSelectedCountryCodes] = useState(['7'])
   const [phonePrefix, setPhonePrefix] = useState('')
+  const [orderDateMode, setOrderDateMode] = useState('any')
+  const [orderDateFrom, setOrderDateFrom] = useState('')
+  const [orderDateTo, setOrderDateTo] = useState('')
+  const [amountMode, setAmountMode] = useState('any')
+  const [amountMin, setAmountMin] = useState('')
+  const [amountMax, setAmountMax] = useState('')
+  const [selectedStatuses, setSelectedStatuses] = useState(ORDER_STATUS_OPTIONS)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -77,6 +85,15 @@ function Generate() {
     setSelectedCountryCodes([])
   }
 
+  const toggleStatus = (status) => {
+    setSelectedStatuses((prev) => {
+      if (prev.includes(status)) {
+        return prev.filter((item) => item !== status)
+      }
+      return [...prev, status]
+    })
+  }
+
   const handleGenerateClick = async () => {
     if (template === 'users') {
       if (selectedDomains.length === 0) {
@@ -101,6 +118,45 @@ function Generate() {
       }
     }
 
+    if (template === 'orders') {
+      if (selectedStatuses.length === 0) {
+        setError('Выберите хотя бы один статус')
+        return
+      }
+      if (orderDateMode === 'range' && (!orderDateFrom || !orderDateTo)) {
+        setError('Выберите обе даты заказа: с и по')
+        return
+      }
+      if (orderDateMode === 'range' && orderDateFrom > orderDateTo) {
+        setError('Дата заказа "с" не может быть больше даты "по"')
+        return
+      }
+      if (amountMode === 'range' && (amountMin === '' || amountMax === '')) {
+        setError('Укажите минимальную и максимальную сумму')
+        return
+      }
+      if (amountMode === 'range') {
+        const min = Number(amountMin)
+        const max = Number(amountMax)
+        if (Number.isNaN(min) || Number.isNaN(max)) {
+          setError('Диапазон суммы должен содержать числа')
+          return
+        }
+        if (min < 0) {
+          setError('Минимальная сумма не может быть отрицательной')
+          return
+        }
+        if (max <= 0) {
+          setError('Максимальная сумма должна быть больше 0')
+          return
+        }
+        if (min > max) {
+          setError('Минимальная сумма не может быть больше максимальной')
+          return
+        }
+      }
+    }
+
     setError('')
     setLoading(true)
     try {
@@ -112,6 +168,11 @@ function Generate() {
         emailDomains: template === 'users' ? selectedDomains.join(',') : undefined,
         registeredFrom: template === 'users' && registrationMode === 'range' ? registeredFrom : undefined,
         registeredTo: template === 'users' && registrationMode === 'range' ? registeredTo : undefined,
+        orderDateFrom: template === 'orders' && orderDateMode === 'range' ? orderDateFrom : undefined,
+        orderDateTo: template === 'orders' && orderDateMode === 'range' ? orderDateTo : undefined,
+        amountMin: template === 'orders' && amountMode === 'range' ? amountMin : undefined,
+        amountMax: template === 'orders' && amountMode === 'range' ? amountMax : undefined,
+        statuses: template === 'orders' ? selectedStatuses.join(',') : undefined,
       })
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -273,6 +334,127 @@ function Generate() {
                 </div>
               </div>
             )}
+          </div>
+        </>
+      )}
+
+      {template === 'orders' && (
+        <>
+          <div className="form-group">
+            <label className="form-label">Дата заказа:</label>
+            <div className="radio-group">
+              <div className="radio-item">
+                <input
+                  id="order-date-any"
+                  type="radio"
+                  name="order-date-mode"
+                  checked={orderDateMode === 'any'}
+                  onChange={() => setOrderDateMode('any')}
+                />
+                <label htmlFor="order-date-any">Любая</label>
+              </div>
+              <div className="radio-item">
+                <input
+                  id="order-date-range"
+                  type="radio"
+                  name="order-date-mode"
+                  checked={orderDateMode === 'range'}
+                  onChange={() => setOrderDateMode('range')}
+                />
+                <label htmlFor="order-date-range">Диапазон (с даты по дату)</label>
+              </div>
+            </div>
+            {orderDateMode === 'range' && (
+              <div className="grid grid-2" style={{ marginTop: '0.75rem' }}>
+                <div>
+                  <label className="form-label">С даты:</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={orderDateFrom}
+                    onChange={(e) => setOrderDateFrom(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">По дату:</label>
+                  <input
+                    type="date"
+                    className="form-input"
+                    value={orderDateTo}
+                    onChange={(e) => setOrderDateTo(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Сумма:</label>
+            <div className="radio-group">
+              <div className="radio-item">
+                <input
+                  id="amount-any"
+                  type="radio"
+                  name="amount-mode"
+                  checked={amountMode === 'any'}
+                  onChange={() => setAmountMode('any')}
+                />
+                <label htmlFor="amount-any">Любая</label>
+              </div>
+              <div className="radio-item">
+                <input
+                  id="amount-range"
+                  type="radio"
+                  name="amount-mode"
+                  checked={amountMode === 'range'}
+                  onChange={() => setAmountMode('range')}
+                />
+                <label htmlFor="amount-range">Диапазон</label>
+              </div>
+            </div>
+            {amountMode === 'range' && (
+              <div className="grid grid-2" style={{ marginTop: '0.75rem' }}>
+                <div>
+                  <label className="form-label">Минимум:</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min="0"
+                    step="0.01"
+                    value={amountMin}
+                    onChange={(e) => setAmountMin(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="form-label">Максимум:</label>
+                  <input
+                    type="number"
+                    className="form-input"
+                    min="0"
+                    step="0.01"
+                    value={amountMax}
+                    onChange={(e) => setAmountMax(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Статусы:</label>
+            <div className="checkbox-group">
+              {ORDER_STATUS_OPTIONS.map((status) => (
+                <div className="checkbox-item" key={status}>
+                  <input
+                    id={`status-${status}`}
+                    type="checkbox"
+                    checked={selectedStatuses.includes(status)}
+                    onChange={() => toggleStatus(status)}
+                  />
+                  <label htmlFor={`status-${status}`}>{status}</label>
+                </div>
+              ))}
+            </div>
           </div>
         </>
       )}
