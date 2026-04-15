@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 COPY schemas ./schemas
+COPY static ./static
 
 EXPOSE 8000
 
