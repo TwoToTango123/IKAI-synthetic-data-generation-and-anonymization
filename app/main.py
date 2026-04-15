@@ -25,8 +25,12 @@ def _decode_csv_bytes(raw: bytes) -> str:
 
 
 @app.get("/")
-def index() -> FileResponse:
-    return FileResponse("static/index.html")
+def index() -> dict[str, str]:
+    return {
+        "message": "IKAI Synthetic Data API is running",
+        "docs": "/docs",
+        "health": "/health",
+    }
 
 
 @app.get("/health")
