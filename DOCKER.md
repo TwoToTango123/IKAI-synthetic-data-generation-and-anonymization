@@ -1,98 +1,118 @@
-# Docker Documentation
+# Docker
 
-В проекте есть два отдельных Dockerfile:
+Проект состоит из двух сервисов:
 
-- `docker/backend/Dockerfile` для backend на FastAPI
-- `docker/frontend/Dockerfile` для frontend на React/Vite
+- **backend** — FastAPI (генерация, анонимизация, валидация)
+- **frontend** — Vite + Nginx (UI + прокси `/api → backend`)
 
-Также для frontend добавлен:
+---
 
-- `docker/frontend/nginx.conf` для раздачи собранного frontend
+## Быстрый старт
 
-## Backend Dockerfile
+    docker compose up --build
 
-Файл: `docker/backend/Dockerfile`
+---
 
-Что делает:
+## Что поднимается
 
--  образ `python:3.11-slim`
-- копирует `requirements.txt`
-- устанавливает Python-зависимости
-- копирует папки `app/` и `schemas/`
-- запускает приложение через `uvicorn`
+### Backend
+- контейнер: `ikai-backend`
+- порт: `8000`
+- URL: http://localhost:8000
+- Swagger: http://localhost:8000/docs
 
-Сборка образа:
+### Frontend
+- контейнер: `ikai-frontend`
+- порт: `3000`
+- URL: http://localhost:3000
+- API проксируется через `/api`
 
-```bash
-docker build -f docker/backend/Dockerfile -t ikai-backend .
-```
+---
 
-Запуск контейнера:
+## Архитектура
 
-```bash
-docker run --rm -p 8000:8000 ikai-backend
-```
+    browser → frontend (nginx :80)
+                 ↓ /api
+             backend (fastapi :8000)
 
-После запуска backend будет доступен по адресу:
+---
 
-```text
-http://localhost:8000
-```
+## Основные endpoints
 
-## Frontend Dockerfile
+### Генерация CSV
 
-Файл: `docker/frontend/Dockerfile`
+GET /generate
 
-Что делает:
+#### users
 
-- использует `node:20-alpine` для сборки frontend
-- копирует файлы из папки `frontend/`
-- выполняет `npm ci`
-- выполняет `npm run build`
-- переносит собранный `dist` в образ `nginx`
-- запускает Nginx на порту `80`
+    curl "http://localhost:8000/generate?template=users&rows=100"
 
-Сборка образа:
+#### orders
 
-```bash
-docker build -f docker/frontend/Dockerfile -t ikai-frontend .
-```
+    curl "http://localhost:8000/generate?template=orders&rows=100"
 
-Если нужно передать адрес API на этапе сборки:
+---
 
-```bash
-docker build \
-  -f docker/frontend/Dockerfile \
-  -t ikai-frontend \
-  --build-arg VITE_API_URL=http://localhost:8000/api \
-  .
-```
+### Анонимизация
 
-Запуск контейнера:
+POST /anonymize
 
-```bash
-docker run --rm -p 3000:80 ikai-frontend
-```
+#### masking
 
-После запуска frontend будет доступен по адресу:
+    curl -X POST http://localhost:8000/anonymize \
+      -F "file=@data.csv" \
+      -F "method=masking" \
+      -F "email_columns=email" \
+      -F "phone_columns=phone"
 
-```text
-http://localhost:3000
-```
+#### pseudonymization
 
-## Nginx конфиг для frontend
+    curl -X POST http://localhost:8000/anonymize \
+      -F "file=@data.csv" \
+      -F "method=pseudonymization" \
+      -F "target_columns=email,phone" \
+      -F "pseudonym_salt=secret"
 
-Файл: `docker/frontend/nginx.conf`
+#### remove
 
-Что делает:
+    curl -X POST http://localhost:8000/anonymize \
+      -F "file=@data.csv" \
+      -F "method=remove" \
+      -F "target_columns=email" \
+      -F "remove_mode=drop"
 
-- раздает статические frontend-файлы
-- поддерживает SPA-маршрутизацию через `try_files`
-- проксирует запросы `/api/` на backend
+---
 
-Сейчас в конфиге backend указан как:
+### Заголовки CSV
 
-```text
-http://backend:8000
-```
+    curl -X POST http://localhost:8000/csv-headers \
+      -F "file=@data.csv"
 
+---
+
+### Валидация JSON
+
+    curl -X POST "http://localhost:8000/validate-json?template=users" \
+      -H "Content-Type: application/json" \
+      -d '{"full_name":"Test","email":"test@test.com","phone":"+79991234567","city":"Moscow","registered_at":"2024-01-01"}'
+
+---
+
+## Отдельный запуск сервисов
+
+### Backend
+
+    docker build -f docker/backend/Dockerfile -t ikai-backend .
+    docker run -p 8000:8000 ikai-backend
+
+### Frontend
+
+    docker build -f docker/frontend/Dockerfile -t ikai-frontend .
+    docker run -p 3000:80 ikai-frontend
+
+---
+
+## Пересборка
+
+    docker compose down
+    docker compose up --build
