@@ -54,7 +54,7 @@ After startup:
 `GET /generate?template=users&rows=100&phone_first_digits=9&email_domains=yandex.ru,gmail.com`
 
 Parameters:
-- `rows` - number of rows (1..10000)
+- `rows` - number of rows (1..100000)
 - `template` - currently only `users`
 - `phone_first_digits` - comma-separated first digit after +7
 - `email_domains` - comma-separated allowed email domains

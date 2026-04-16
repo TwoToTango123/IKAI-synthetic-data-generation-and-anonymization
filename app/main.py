@@ -40,7 +40,7 @@ def health() -> dict[str, str]:
 
 @app.get("/generate", response_class=PlainTextResponse)
 def generate(
-    rows: Annotated[int, Query(ge=1, le=10000)] = 100,
+    rows: Annotated[int, Query(ge=1, le=100000)] = 100,
     template: Annotated[str, Query()] = "users",
     country_codes: Annotated[str, Query()] = "7",
     phone_prefix: Annotated[str, Query()] = "",
