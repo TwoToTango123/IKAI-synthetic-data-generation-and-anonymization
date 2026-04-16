@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import FileUpload from '../components/FileUpload'
 import { anonymizeData, getCsvHeaders } from '../services/api'
 import { parseCsvPreview } from '../utils/csvPreview'
@@ -46,7 +46,26 @@ function Anonymize() {
   const [loading, setLoading] = useState(false)
   const [inputPreview, setInputPreview] = useState(null)
   const [outputPreview, setOutputPreview] = useState(null)
-  const [error, setError] = useState('')
+  const [notification, setNotification] = useState(null)
+  const notificationTimerRef = useRef(null)
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimerRef.current) {
+        window.clearTimeout(notificationTimerRef.current)
+      }
+    }
+  }, [])
+
+  const showNotification = (type, message) => {
+    setNotification({ type, message })
+    if (notificationTimerRef.current) {
+      window.clearTimeout(notificationTimerRef.current)
+    }
+    notificationTimerRef.current = window.setTimeout(() => {
+      setNotification(null)
+    }, 3500)
+  }
 
   const columns = TEMPLATE_COLUMNS[template] || []
 
@@ -55,7 +74,6 @@ function Anonymize() {
     setTemplate(nextTemplate)
     setSelectedColumns(DEFAULT_SELECTION[nextTemplate] || [])
     setOutputPreview(null)
-    setError('')
   }
 
   const handleMethodChange = (event) => {
@@ -69,7 +87,6 @@ function Anonymize() {
       setSelectedColumns([])
     }
     setOutputPreview(null)
-    setError('')
   }
 
   const toggleColumn = (column) => {
@@ -84,7 +101,6 @@ function Anonymize() {
   const handleFileUpload = async (uploadedFile) => {
     setFile(uploadedFile)
     setOutputPreview(null)
-    setError('')
 
     try {
       const sourceText = await uploadedFile.text()
@@ -100,25 +116,25 @@ function Anonymize() {
       if (method !== ANONYMIZATION_METHODS.MASKING) {
         setSelectedColumns(headers)
       }
+      showNotification('success', `Файл ${uploadedFile.name} загружен`)
     } catch (err) {
       setCsvHeaders([])
       const message = err?.message || 'Не удалось прочитать заголовки CSV'
-      setError(`Ошибка API: ${message}`)
+      showNotification('error', `Ошибка API: ${message}`)
     }
   }
 
   const handleAnonymize = async () => {
     if (!file) {
-      setError('Пожалуйста, загрузите CSV файл')
+      showNotification('error', 'Пожалуйста, загрузите CSV файл')
       return
     }
 
     if (selectedColumns.length === 0) {
-      setError('Выберите хотя бы одну колонку для анонимизации')
+      showNotification('error', 'Выберите хотя бы одну колонку для анонимизации')
       return
     }
 
-    setError('')
     setLoading(true)
     try {
       const formData = new FormData()
@@ -184,9 +200,10 @@ function Anonymize() {
       link.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(link)
+      showNotification('success', 'Файл анонимизирован и готов к скачиванию')
     } catch (err) {
       const message = err?.message || 'Не удалось обработать файл'
-      setError(`Ошибка API: ${message}`)
+      showNotification('error', `Ошибка API: ${message}`)
     } finally {
       setLoading(false)
     }
@@ -227,10 +244,18 @@ function Anonymize() {
     <div className="container">
       <h1 className="section-title">Анонимизация данных</h1>
 
-      {error && (
-        <div className="alert alert-error">
-          <span className="alert-icon">!</span>
-          <div>{error}</div>
+      {notification && (
+        <div className={`toast toast-${notification.type}`} role="status" aria-live="polite">
+          <span className="toast-icon">{notification.type === 'success' ? '✓' : '!'}</span>
+          <div className="toast-content">{notification.message}</div>
+          <button
+            type="button"
+            className="toast-close"
+            onClick={() => setNotification(null)}
+            aria-label="Закрыть уведомление"
+          >
+            ×
+          </button>
         </div>
       )}
 

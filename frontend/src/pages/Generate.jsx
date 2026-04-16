@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { generateData } from '../services/api'
 import { parseCsvPreview } from '../utils/csvPreview'
 
@@ -60,8 +60,27 @@ function Generate() {
   const [amountMax, setAmountMax] = useState('')
   const [selectedStatuses, setSelectedStatuses] = useState(ORDER_STATUS_OPTIONS)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
   const [preview, setPreview] = useState(null)
+  const [notification, setNotification] = useState(null)
+  const notificationTimerRef = useRef(null)
+
+  useEffect(() => {
+    return () => {
+      if (notificationTimerRef.current) {
+        window.clearTimeout(notificationTimerRef.current)
+      }
+    }
+  }, [])
+
+  const showNotification = (type, message) => {
+    setNotification({ type, message })
+    if (notificationTimerRef.current) {
+      window.clearTimeout(notificationTimerRef.current)
+    }
+    notificationTimerRef.current = window.setTimeout(() => {
+      setNotification(null)
+    }, 3500)
+  }
 
   const toggleDomain = (domain) => {
     setSelectedDomains((prev) => {
@@ -101,67 +120,66 @@ function Generate() {
   const handleGenerateClick = async () => {
     if (template === 'users') {
       if (selectedDomains.length === 0) {
-        setError('Выберите хотя бы один домен электронной почты')
+        showNotification('error', 'Выберите хотя бы один домен электронной почты')
         return
       }
       if (phonePrefix && !/^\d{1,3}$/.test(phonePrefix)) {
-        setError('Префикс телефона должен содержать от 1 до 3 цифр')
+        showNotification('error', 'Префикс телефона должен содержать от 1 до 3 цифр')
         return
       }
       if (selectedCountryCodes.length === 0) {
-        setError('Выберите хотя бы один код страны')
+        showNotification('error', 'Выберите хотя бы один код страны')
         return
       }
       if (registrationMode === 'range' && (!registeredFrom || !registeredTo)) {
-        setError('Выберите обе даты: с и по')
+        showNotification('error', 'Выберите обе даты: с и по')
         return
       }
       if (registrationMode === 'range' && registeredFrom > registeredTo) {
-        setError('Дата "с" не может быть больше даты "по"')
+        showNotification('error', 'Дата "с" не может быть больше даты "по"')
         return
       }
     }
 
     if (template === 'orders') {
       if (selectedStatuses.length === 0) {
-        setError('Выберите хотя бы один статус')
+        showNotification('error', 'Выберите хотя бы один статус')
         return
       }
       if (orderDateMode === 'range' && (!orderDateFrom || !orderDateTo)) {
-        setError('Выберите обе даты заказа: с и по')
+        showNotification('error', 'Выберите обе даты заказа: с и по')
         return
       }
       if (orderDateMode === 'range' && orderDateFrom > orderDateTo) {
-        setError('Дата заказа "с" не может быть больше даты "по"')
+        showNotification('error', 'Дата заказа "с" не может быть больше даты "по"')
         return
       }
       if (amountMode === 'range' && (amountMin === '' || amountMax === '')) {
-        setError('Укажите минимальную и максимальную сумму')
+        showNotification('error', 'Укажите минимальную и максимальную сумму')
         return
       }
       if (amountMode === 'range') {
         const min = Number(amountMin)
         const max = Number(amountMax)
         if (Number.isNaN(min) || Number.isNaN(max)) {
-          setError('Диапазон суммы должен содержать числа')
+          showNotification('error', 'Диапазон суммы должен содержать числа')
           return
         }
         if (min < 0) {
-          setError('Минимальная сумма не может быть отрицательной')
+          showNotification('error', 'Минимальная сумма не может быть отрицательной')
           return
         }
         if (max <= 0) {
-          setError('Максимальная сумма должна быть больше 0')
+          showNotification('error', 'Максимальная сумма должна быть больше 0')
           return
         }
         if (min > max) {
-          setError('Минимальная сумма не может быть больше максимальной')
+          showNotification('error', 'Минимальная сумма не может быть больше максимальной')
           return
         }
       }
     }
 
-    setError('')
     setLoading(true)
     try {
       const blob = await generateData({
@@ -195,9 +213,10 @@ function Generate() {
       link.click()
       window.URL.revokeObjectURL(url)
       document.body.removeChild(link)
+      showNotification('success', 'Файл сгенерирован и готов к скачиванию')
     } catch (err) {
       const message = err?.message || 'Не удалось сгенерировать данные'
-      setError(`Ошибка API: ${message}`)
+      showNotification('error', `Ошибка API: ${message}`)
     } finally {
       setLoading(false)
     }
@@ -207,10 +226,18 @@ function Generate() {
     <div className="container">
       <h1 className="section-title">Генерация данных</h1>
 
-      {error && (
-        <div className="alert alert-error">
-          <span className="alert-icon">!</span>
-          <div>{error}</div>
+      {notification && (
+        <div className={`toast toast-${notification.type}`} role="status" aria-live="polite">
+          <span className="toast-icon">{notification.type === 'success' ? '✓' : '!'}</span>
+          <div className="toast-content">{notification.message}</div>
+          <button
+            type="button"
+            className="toast-close"
+            onClick={() => setNotification(null)}
+            aria-label="Закрыть уведомление"
+          >
+            ×
+          </button>
         </div>
       )}
 
