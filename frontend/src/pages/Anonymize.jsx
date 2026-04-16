@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import FileUpload from '../components/FileUpload'
 import { anonymizeData, getCsvHeaders } from '../services/api'
+import { parseCsvPreview } from '../utils/csvPreview'
 
 const TEMPLATE_COLUMNS = {
   users: ['full_name', 'email', 'phone', 'city'],
@@ -32,6 +33,8 @@ const ANONYMIZATION_METHODS = {
   REMOVE: 'remove',
 }
 
+const PREVIEW_ROW_LIMIT = 5
+
 function Anonymize() {
   const [template, setTemplate] = useState('users')
   const [selectedColumns, setSelectedColumns] = useState(DEFAULT_SELECTION.users)
@@ -41,6 +44,8 @@ function Anonymize() {
   const [pseudonymSalt, setPseudonymSalt] = useState('')
   const [csvHeaders, setCsvHeaders] = useState([])
   const [loading, setLoading] = useState(false)
+  const [inputPreview, setInputPreview] = useState(null)
+  const [outputPreview, setOutputPreview] = useState(null)
   const [error, setError] = useState('')
 
   const columns = TEMPLATE_COLUMNS[template] || []
@@ -49,6 +54,7 @@ function Anonymize() {
     const nextTemplate = event.target.value
     setTemplate(nextTemplate)
     setSelectedColumns(DEFAULT_SELECTION[nextTemplate] || [])
+    setOutputPreview(null)
     setError('')
   }
 
@@ -62,6 +68,7 @@ function Anonymize() {
     } else {
       setSelectedColumns([])
     }
+    setOutputPreview(null)
     setError('')
   }
 
@@ -76,9 +83,18 @@ function Anonymize() {
 
   const handleFileUpload = async (uploadedFile) => {
     setFile(uploadedFile)
+    setOutputPreview(null)
     setError('')
 
     try {
+      const sourceText = await uploadedFile.text()
+      const parsedInputPreview = parseCsvPreview(sourceText, PREVIEW_ROW_LIMIT)
+      setInputPreview({
+        fileName: uploadedFile.name,
+        headers: parsedInputPreview.headers,
+        rows: parsedInputPreview.rows,
+      })
+
       const headers = await getCsvHeaders(uploadedFile)
       setCsvHeaders(headers)
       if (method !== ANONYMIZATION_METHODS.MASKING) {
@@ -152,6 +168,14 @@ function Anonymize() {
 
       const blob = await anonymizeData(formData)
 
+      const resultText = await blob.text()
+      const parsedOutputPreview = parseCsvPreview(resultText, PREVIEW_ROW_LIMIT)
+      setOutputPreview({
+        fileName: `anon_${file.name}`,
+        headers: parsedOutputPreview.headers,
+        rows: parsedOutputPreview.rows,
+      })
+
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -166,6 +190,37 @@ function Anonymize() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const renderPreviewTable = (preview) => {
+    if (!preview || preview.headers.length === 0 || preview.rows.length === 0) {
+      return <div className="preview-empty">Нет данных для предпросмотра.</div>
+    }
+
+    return (
+      <div className="table-preview preview-table">
+        <table>
+          <thead>
+            <tr>
+              {preview.headers.map((header) => (
+                <th key={header}>{header || '—'}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {preview.rows.map((row, rowIndex) => (
+              <tr key={`${preview.fileName}-${rowIndex}`}>
+                {preview.headers.map((_, cellIndex) => (
+                  <td key={`${preview.fileName}-${rowIndex}-${cellIndex}`}>
+                    {row[cellIndex] || '—'}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    )
   }
 
   return (
@@ -304,6 +359,28 @@ function Anonymize() {
             Загрузить другой
           </button>
         </div>
+      )}
+
+      {inputPreview && (
+        <section className="preview-section preview-comparison">
+          <div className="card">
+            <div className="card-title">До обработки</div>
+            <div className="preview-meta">
+              Файл {inputPreview.fileName}. Показаны первые {inputPreview.rows.length} строк.
+            </div>
+            {renderPreviewTable(inputPreview)}
+          </div>
+
+          <div className="card">
+            <div className="card-title">После обработки</div>
+            <div className="preview-meta">
+              {outputPreview
+                ? `Файл ${outputPreview.fileName}. Показаны первые ${outputPreview.rows.length} строк.`
+                : 'Запустите обработку, чтобы увидеть результат.'}
+            </div>
+            {outputPreview ? renderPreviewTable(outputPreview) : <div className="preview-empty">После анонимизации здесь появится сравнение.</div>}
+          </div>
+        </section>
       )}
 
       <button
