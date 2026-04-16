@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { generateData } from '../services/api'
+import { parseCsvPreview } from '../utils/csvPreview'
 
 const ALLOWED_DOMAINS = ['gmail.com', 'rambler.ru', 'mail.ru', 'yandex.ru', 'microsoft.com']
 const ORDER_STATUS_OPTIONS = ['new', 'paid', 'processing', 'completed', 'cancelled']
@@ -40,6 +41,8 @@ const COUNTRY_CODE_OPTIONS = [
   { value: '971', label: '+971 (AE)' },
 ]
 
+const PREVIEW_ROW_LIMIT = 5
+
 function Generate() {
   const [template, setTemplate] = useState('users')
   const [rows, setRows] = useState(1000)
@@ -58,6 +61,7 @@ function Generate() {
   const [selectedStatuses, setSelectedStatuses] = useState(ORDER_STATUS_OPTIONS)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [preview, setPreview] = useState(null)
 
   const toggleDomain = (domain) => {
     setSelectedDomains((prev) => {
@@ -174,6 +178,15 @@ function Generate() {
         amountMax: template === 'orders' && amountMode === 'range' ? amountMax : undefined,
         statuses: template === 'orders' ? selectedStatuses.join(',') : undefined,
       })
+
+      const previewText = await blob.text()
+      const parsedPreview = parseCsvPreview(previewText, PREVIEW_ROW_LIMIT)
+      setPreview({
+        fileName: `${template}.csv`,
+        headers: parsedPreview.headers,
+        rows: parsedPreview.rows,
+      })
+
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
       link.href = url
@@ -466,6 +479,44 @@ function Generate() {
       >
         {loading ? 'Генерирую...' : 'Сгенерировать'}
       </button>
+
+      {preview && (
+        <section className="preview-section">
+          <div className="card">
+            <div className="card-title">Предпросмотр результата</div>
+            <div className="preview-meta">
+              Файл {preview.fileName}. Показаны первые {preview.rows.length} строк.
+            </div>
+
+            {preview.headers.length > 0 && preview.rows.length > 0 ? (
+              <div className="table-preview preview-table">
+                <table>
+                  <thead>
+                    <tr>
+                      {preview.headers.map((header) => (
+                        <th key={header}>{header || '—'}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preview.rows.map((row, rowIndex) => (
+                      <tr key={`${preview.fileName}-${rowIndex}`}>
+                        {preview.headers.map((_, cellIndex) => (
+                          <td key={`${preview.fileName}-${rowIndex}-${cellIndex}`}>
+                            {row[cellIndex] || '—'}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="preview-empty">Не удалось разобрать CSV для предпросмотра.</div>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   )
 }
