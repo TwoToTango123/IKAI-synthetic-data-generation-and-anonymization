@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200;300;400;500;600;700&display=swap');
+
 * {
   margin: 0;
   padding: 0;
@@ -5,12 +7,29 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+    'Helvetica Neue', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f7fa;
+  background:
+    linear-gradient(223deg, rgba(176, 216, 158, 0.06) 0%, rgba(255, 255, 255, 0.06) 100%),
+    linear-gradient(rgba(224, 224, 220, 0.37), rgba(224, 224, 220, 0.37)),
+    url('./assets/hero-bg.png') center / cover no-repeat,
+    #e0e0dc;
+  background-attachment: scroll, scroll, fixed, scroll;
+  overflow-y: scroll;
+  overflow-x: auto;
+}
+
+/* Hide scrollbars but keep scrolling functional */
+html::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+body::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .app {
@@ -21,7 +40,7 @@ body {
 
 .main-content {
   flex: 1;
-  padding: 2rem;
+  padding: 0;
 }
 
 /* Header Styles */
@@ -30,6 +49,24 @@ header {
   color: white;
   padding: 1.5rem 2rem;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+header.header-home {
+  background: rgba(255, 255, 255, 0.95);
+  color: #393939;
+  padding: 1.5rem 2rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  position: relative;
+  z-index: 100;
+}
+
+header.header-home .header-title {
+  color: #676767;
+  font-weight: 300;
+}
+
+header.header-home .header-title span {
+  font-weight: 400;
 }
 
 .header-content {
@@ -422,6 +459,105 @@ header {
   flex-shrink: 0;
 }
 
+.toast {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 200;
+  min-width: 280px;
+  max-width: 420px;
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  box-shadow: 0 16px 40px rgba(25, 35, 52, 0.18);
+  backdrop-filter: blur(12px);
+}
+
+.toast-success {
+  background: rgba(240, 255, 244, 0.97);
+  border: 1px solid #9ae6b4;
+  color: #22543d;
+}
+
+.toast-error {
+  background: rgba(255, 245, 245, 0.98);
+  border: 1px solid #fc8181;
+  color: #742a2a;
+}
+
+.toast-icon {
+  flex-shrink: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.toast-content {
+  flex: 1;
+  line-height: 1.45;
+  padding-top: 0.05rem;
+}
+
+.toast-close {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  margin-left: 0.25rem;
+}
+
+.preview-section {
+  margin-top: 1.5rem;
+}
+
+.preview-comparison {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+}
+
+.preview-meta {
+  font-size: 0.9rem;
+  color: #718096;
+  margin-bottom: 0.75rem;
+}
+
+.preview-empty {
+  padding: 1rem;
+  border: 1px dashed #cbd5e0;
+  border-radius: 8px;
+  color: #718096;
+  background: #f8fafc;
+}
+
+.file-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #2d3748;
+}
+
+.preview-table {
+  margin-top: 0;
+}
+
 /* Loading States */
 .loading {
   display: inline-block;
@@ -474,5 +610,22 @@ header {
 
   .btn-block {
     width: 100%;
+  }
+
+  .toast {
+    left: 1rem;
+    right: 1rem;
+    bottom: 1rem;
+    min-width: 0;
+    max-width: none;
+  }
+
+  .file-info {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .preview-comparison {
+    grid-template-columns: 1fr;
   }
 }

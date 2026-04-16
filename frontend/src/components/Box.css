@@ -1,0 +1,13 @@
+.box {
+  display: block;
+  height: 100%;
+  width: 100%;
+  overflow: visible;
+}
+
+.box .group {
+  height: 100%;
+  width: 100%;
+  display: block;
+  overflow: visible;
+}
