@@ -7,7 +7,6 @@ RUN npm ci
 
 COPY frontend ./
 
-# Set at build time if the frontend should call a non-default API URL.
 ARG VITE_API_URL=http://localhost:8000/api
 ENV VITE_API_URL=$VITE_API_URL
 

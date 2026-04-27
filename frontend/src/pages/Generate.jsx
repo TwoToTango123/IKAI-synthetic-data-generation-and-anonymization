@@ -261,7 +261,7 @@ function Generate() {
           value={rows}
           onChange={(e) => setRows(e.target.value)}
           min="1"
-          max="1000000"
+          max="100000"
         />
       </div>
 

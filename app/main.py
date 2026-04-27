@@ -25,8 +25,12 @@ def _decode_csv_bytes(raw: bytes) -> str:
 
 
 @app.get("/")
-def index() -> FileResponse:
-    return FileResponse("static/index.html")
+def index() -> dict[str, str]:
+    return {
+        "message": "IKAI Synthetic Data API is running",
+        "docs": "/docs",
+        "health": "/health",
+    }
 
 
 @app.get("/health")
@@ -36,7 +40,7 @@ def health() -> dict[str, str]:
 
 @app.get("/generate", response_class=PlainTextResponse)
 def generate(
-    rows: Annotated[int, Query(ge=1, le=10000)] = 100,
+    rows: Annotated[int, Query(ge=1, le=100000)] = 100,
     template: Annotated[str, Query()] = "users",
     country_codes: Annotated[str, Query()] = "7",
     phone_prefix: Annotated[str, Query()] = "",
