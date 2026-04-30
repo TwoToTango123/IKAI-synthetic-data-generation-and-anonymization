@@ -4,6 +4,7 @@ import csv
 import hashlib
 import io
 from typing import Iterable
+from typing import Any
 
 
 def mask_email(value: str) -> str:
@@ -269,8 +270,8 @@ def anonymize_csv_with_pseudonyms(
     content: str,
     target_columns: Iterable[str],
     salt: str = "",
-) -> str:
-    """Deterministic pseudonymization for selected columns."""
+) -> tuple[str, dict[str, dict[str, str]]]:
+    """Deterministic pseudonymization with reverse mapping for selected columns."""
     target_cols = _normalize_target_columns(target_columns)
     reader = _read_csv_dict_reader(content, target_cols)
 
@@ -278,6 +279,7 @@ def anonymize_csv_with_pseudonyms(
         raise ValueError("CSV не содержит заголовок")
 
     fields = [name.strip() for name in reader.fieldnames]
+    mapping: dict[str, dict[str, str]] = {}
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=fields)
     writer.writeheader()
@@ -288,11 +290,75 @@ def anonymize_csv_with_pseudonyms(
         for col in target_cols:
             if col not in fields:
                 continue
-            row[col] = _pseudonymize_value(col, row.get(col, ""), salt=salt)
+            original = (row.get(col, "") or "").strip()
+            if not original:
+                continue
+
+            pseudo_value = _pseudonymize_value(col, original, salt=salt)
+            column_mapping = mapping.setdefault(col, {})
+            existing = column_mapping.get(pseudo_value)
+            if existing is not None and existing != original:
+                raise ValueError(
+                    f"Коллизия псевдонима для колонки '{col}'. Измените pseudonym_salt и повторите попытку"
+                )
+
+            column_mapping[pseudo_value] = original
+            row[col] = pseudo_value
         writer.writerow(row)
 
     if row_count == 0:
         raise ValueError("CSV пустой: нет строк данных")
+
+    return out.getvalue(), mapping
+
+
+def deanonymize_csv_with_pseudonyms(
+    content: str,
+    mapping: dict[str, Any],
+    strict: bool = True,
+) -> str:
+    """Restore original values from pseudonyms using a saved mapping."""
+    columns_mapping = mapping.get("columns") if isinstance(mapping, dict) else None
+    if not isinstance(columns_mapping, dict) or not columns_mapping:
+        raise ValueError("Карта псевдонимов повреждена: отсутствуют данные по колонкам")
+
+    reader = _read_csv_dict_reader(content)
+    if reader.fieldnames is None:
+        raise ValueError("CSV не содержит заголовок")
+
+    fields = [name.strip() for name in reader.fieldnames]
+    out = io.StringIO()
+    writer = csv.DictWriter(out, fieldnames=fields)
+    writer.writeheader()
+
+    row_count = 0
+    missing_tokens = 0
+    for row in reader:
+        row_count += 1
+        for col, token_to_original in columns_mapping.items():
+            if col not in fields or not isinstance(token_to_original, dict):
+                continue
+
+            current = (row.get(col, "") or "").strip()
+            if not current:
+                continue
+
+            original = token_to_original.get(current)
+            if original is None:
+                if strict:
+                    missing_tokens += 1
+                continue
+            row[col] = original
+
+        writer.writerow(row)
+
+    if row_count == 0:
+        raise ValueError("CSV пустой: нет строк данных")
+
+    if strict and missing_tokens > 0:
+        raise ValueError(
+            f"Не удалось восстановить {missing_tokens} значений: карта не подходит к этому CSV"
+        )
 
     return out.getvalue()
 

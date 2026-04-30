@@ -81,9 +81,44 @@ export const anonymizeData = async (formData) => {
       },
       responseType: 'blob',
     })
-    return response.data
+
+    // Check if response is JSON (pseudonymization) or CSV
+    const contentType = response.headers['content-type'] || ''
+    
+    if (contentType.includes('application/json')) {
+      // Parse JSON response for pseudonymization
+      const text = await response.data.text()
+      const jsonData = JSON.parse(text)
+      return {
+        blob: new Blob([jsonData.csv], { type: 'text/csv' }),
+        data: jsonData, // Full data including mapping
+        mappingId: null, // No longer used
+      }
+    } else {
+      // Regular CSV response for masking/remove
+      return {
+        blob: response.data,
+        data: null,
+        mappingId: null,
+      }
+    }
   } catch (error) {
     throw new Error(await extractErrorMessage(error, 'Не удалось анонимизировать данные'))
+  }
+}
+
+export const deanonymizeData = async (formData) => {
+  try {
+    const response = await api.post('/deanonymize', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+      responseType: 'blob',
+    })
+
+    return response.data
+  } catch (error) {
+    throw new Error(await extractErrorMessage(error, 'Не удалось восстановить данные'))
   }
 }
 

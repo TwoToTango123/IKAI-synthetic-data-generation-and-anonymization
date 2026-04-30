@@ -2,8 +2,19 @@
 
 Проект предоставляет API для:
 - генерации synthetic `users.csv`;
-- анонимизации загруженного CSV (email, phone, name);
+- анонимизации загруженного CSV (masking / pseudonymization / remove);
+- обратного восстановления данных после pseudonymization по сохраненным в браузере карт;
 - валидации JSON (users/orders) по JSON Schema.
+
+**🔒 Безопасность:** Данные псевдонимов хранятся только в браузере пользователя. Сервер не имеет доступа к личным данным. Автоматическое удаление через 30 дней.
+
+## 📚 Документация
+
+| Документ | Описание |
+|----------|---------|
+| [DEPLOYMENT.md](DEPLOYMENT.md) | 🚀 Развёртывание на Render, REG.RU, Docker — начните отсюда для production |
+| [DOCKER.md](DOCKER.md) | 🐳 Docker Compose и локальная разработка |
+| [SECURITY_AND_PRIVACY.md](SECURITY_AND_PRIVACY.md) | 🔒 Безопасность, rate limiting, защита от DDoS |
 
 ## Stack
 
@@ -20,14 +31,31 @@ app/
   anonymization.py
   generation.py
   main.py
+  pseudonym_store.py
   schema_validation.py
+  logging_config.py
 schemas/
   users.schema.json
   orders.schema.json
-static/
 tests/
 requirements.txt
-README.md
+docker/
+  backend/
+    Dockerfile
+  frontend/
+    Dockerfile
+    nginx.conf
+frontend/
+  src/
+    components/
+    pages/
+    services/
+    App.jsx
+    main.jsx
+Procfile
+DEPLOYMENT.md
+DOCKER.md
+SECURITY_AND_PRIVACY.md
 ```
 
 ## Setup
@@ -47,6 +75,16 @@ After startup:
 - `http://127.0.0.1:8000/docs` - Swagger UI
 - `http://127.0.0.1:8000/health` - health check
 
+## 🛡️ Безопасность и лимиты
+
+- **Размер файла**: максимум 50 МБ
+- **Строк в CSV**: максимум 1,000,000
+- **Rate limiting**: 20 запросов/минуту для `/generate`, 30 запросов/минуту для `/anonymize`, `/deanonymize`, `/csv-headers`, `/validate-json`
+- **Хранение данных**: только в браузере пользователя, автоудаление через 30 дней
+- **DDoS защита**: встроенное ограничение частоты запросов
+
+Для подробной информации см. [SECURITY_AND_PRIVACY.md](SECURITY_AND_PRIVACY.md)
+
 ## API
 
 ### 1. Generate CSV
@@ -65,9 +103,24 @@ Parameters:
 
 Form-data:
 - `file` - CSV file
-- `email_columns` - columns for email masking
-- `phone_columns` - columns for phone masking
-- `name_columns` - columns for name masking
+- `method` - `masking` | `pseudonymization` | `remove`
+- `target_columns` - columns for pseudonymization/remove
+- `pseudonym_salt` - optional salt for pseudonymization
+- `remove_mode` - `empty` or `drop` for remove mode
+- `email_columns`, `phone_columns`, `name_columns`, `city_columns`, `digits_columns`, `date_columns`, `numeric_columns` - masking columns by type
+
+For `method=pseudonymization`, response returns JSON with `csv` and `mapping`.
+Save the returned `mapping` object: it is required to restore original values.
+
+### 3. De-anonymize CSV (reverse pseudonymization)
+
+`POST /deanonymize`
+
+Form-data:
+- `file` - pseudonymized CSV
+- `mapping` - JSON string with the pseudonym mapping returned by `/anonymize`
+
+If `mapping` is valid and matches the pseudonymized file, API returns restored CSV with original values.
 
 Validation rules include:
 - file name presence;
@@ -77,7 +130,7 @@ Validation rules include:
 - at least one target column;
 - unknown columns check.
 
-### 3. Validate JSON By Schema
+### 4. Validate JSON By Schema
 
 `POST /validate-json?template=users`
 
@@ -107,3 +160,16 @@ Response:
 ```powershell
 python -m unittest discover -s tests -v
 ```
+
+## Logs
+
+- По умолчанию сервис пишет логи в stdout/stderr (чтобы их можно было смотреть через `docker logs` или через провайдера, например Render).
+- В контейнере также создаётся файл логов по пути, указанному в переменной окружения `LOG_FILE` (по умолчанию `/var/log/ikai/ikai_app.log`).
+- Если вы запускаете контейнер локально, просмотреть логи можно так:
+
+```bash
+docker logs <container-id>
+tail -n 200 /var/log/ikai/ikai_app.log
+```
+
+На Render и подобных платформах читайте stdout/stderr через веб-интерфейс сервиса.

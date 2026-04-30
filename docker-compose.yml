@@ -7,6 +7,17 @@ services:
     ports:
       - "8000:8000"
     restart: unless-stopped
+    environment:
+      # Security settings
+      MAX_FILE_SIZE_MB: 50
+      MAX_CSV_ROWS: 1000000
+      RATE_LIMIT_WINDOW_SECONDS: 60
+      RATE_LIMIT_DEFAULT_PER_WINDOW: 60
+      RATE_LIMIT_GENERATE_PER_WINDOW: 20
+      RATE_LIMIT_ANONYMIZE_PER_WINDOW: 30
+      RATE_LIMIT_DEANONYMIZE_PER_WINDOW: 30
+      RATE_LIMIT_CSV_HEADERS_PER_WINDOW: 30
+      RATE_LIMIT_VALIDATE_JSON_PER_WINDOW: 30
 
   frontend:
     build:

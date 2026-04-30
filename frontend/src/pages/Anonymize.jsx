@@ -1,6 +1,6 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import FileUpload from '../components/FileUpload'
-import { anonymizeData, getCsvHeaders } from '../services/api'
+import { anonymizeData, deanonymizeData, getCsvHeaders } from '../services/api'
 
 const TEMPLATE_COLUMNS = {
   users: ['full_name', 'email', 'phone', 'city'],
@@ -32,6 +32,10 @@ const ANONYMIZATION_METHODS = {
   REMOVE: 'remove',
 }
 
+// Storage keys for client-side mapping
+const MAPPINGS_STORAGE_KEY = 'ikai_pseudonym_mappings_v2'
+const MAPPING_EXPIRY_DAYS = 30 // Delete mappings after 30 days
+
 function Anonymize() {
   const [template, setTemplate] = useState('users')
   const [selectedColumns, setSelectedColumns] = useState(DEFAULT_SELECTION.users)
@@ -40,10 +44,118 @@ function Anonymize() {
   const [removeMode, setRemoveMode] = useState('empty')
   const [pseudonymSalt, setPseudonymSalt] = useState('')
   const [csvHeaders, setCsvHeaders] = useState([])
+  const [latestMappingId, setLatestMappingId] = useState('')
+  const [savedMappings, setSavedMappings] = useState([])
+  const [restoreFile, setRestoreFile] = useState(null)
+  const [selectedMappingId, setSelectedMappingId] = useState('')
+  const [restoring, setRestoring] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const columns = TEMPLATE_COLUMNS[template] || []
+
+  // Clean up expired mappings on component mount
+  useEffect(() => {
+    cleanupExpiredMappings()
+    loadSavedMappings()
+  }, [])
+
+  const cleanupExpiredMappings = () => {
+    try {
+      const raw = window.localStorage.getItem(MAPPINGS_STORAGE_KEY)
+      if (!raw) return
+
+      const mappings = JSON.parse(raw)
+      const now = new Date().getTime()
+      const expiryMs = MAPPING_EXPIRY_DAYS * 24 * 60 * 60 * 1000
+
+      const validMappings = mappings.filter((item) => {
+        const createdAt = new Date(item.createdAt).getTime()
+        const age = now - createdAt
+        return age < expiryMs
+      })
+
+      if (validMappings.length !== mappings.length) {
+        window.localStorage.setItem(MAPPINGS_STORAGE_KEY, JSON.stringify(validMappings))
+      }
+    } catch (err) {
+      console.error('Error cleaning up expired mappings:', err)
+    }
+  }
+
+  const loadSavedMappings = () => {
+    try {
+      const raw = window.localStorage.getItem(MAPPINGS_STORAGE_KEY)
+      if (!raw) {
+        setSavedMappings([])
+        return
+      }
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        setSavedMappings(parsed)
+      }
+    } catch {
+      setSavedMappings([])
+    }
+  }
+
+  const saveMappingToBrowser = (mappingData) => {
+    if (!mappingData || typeof mappingData !== 'object') {
+      console.error('Invalid mapping data')
+      return null
+    }
+
+    try {
+      const mappingId = `m_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      const normalizedMapping = mappingData.columns ? mappingData : {
+        columns: mappingData,
+        created_at: new Date().toISOString(),
+        version: '1.0',
+      }
+      const entry = {
+        id: mappingId,
+        mapping: normalizedMapping,
+        createdAt: new Date().toISOString(),
+        sourceFile: file?.name || '',
+        expiresAt: new Date(Date.now() + MAPPING_EXPIRY_DAYS * 24 * 60 * 60 * 1000).toISOString(),
+      }
+
+      const withoutDuplicate = savedMappings.filter((item) => item.id !== mappingId)
+      const next = [entry, ...withoutDuplicate].slice(0, 20)
+      setSavedMappings(next)
+      window.localStorage.setItem(MAPPINGS_STORAGE_KEY, JSON.stringify(next))
+      setLatestMappingId(mappingId)
+      setSelectedMappingId(mappingId)
+      return mappingId
+    } catch (err) {
+      console.error('Error saving mapping:', err)
+      setError('Не удалось сохранить mapping в браузер')
+      return null
+    }
+  }
+
+  const removeSavedMapping = (mappingId) => {
+    const next = savedMappings.filter((item) => item.id !== mappingId)
+    setSavedMappings(next)
+    window.localStorage.setItem(MAPPINGS_STORAGE_KEY, JSON.stringify(next))
+    if (selectedMappingId === mappingId) {
+      setSelectedMappingId('')
+    }
+  }
+
+  const getTimeUntilExpiry = (expiresAt) => {
+    const now = new Date().getTime()
+    const expiry = new Date(expiresAt).getTime()
+    const diff = expiry - now
+
+    if (diff <= 0) return 'истекло'
+
+    const days = Math.floor(diff / (24 * 60 * 60 * 1000))
+    const hours = Math.floor((diff % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000))
+
+    if (days > 0) return `${days} дн. ${hours} ч.`
+    return `${hours} ч.`
+  }
 
   const handleTemplateChange = (event) => {
     const nextTemplate = event.target.value
@@ -55,6 +167,7 @@ function Anonymize() {
   const handleMethodChange = (event) => {
     const nextMethod = event.target.value
     setMethod(nextMethod)
+    setLatestMappingId('')
     if (nextMethod === ANONYMIZATION_METHODS.MASKING) {
       setSelectedColumns(DEFAULT_SELECTION[template] || [])
     } else if (csvHeaders.length > 0) {
@@ -150,7 +263,12 @@ function Anonymize() {
         }
       }
 
-      const blob = await anonymizeData(formData)
+      const { blob, data } = await anonymizeData(formData)
+      
+      if (method === ANONYMIZATION_METHODS.PSEUDONYMIZATION && data && data.mapping) {
+        // Save the full mapping (not just ID) for client-side storage
+        saveMappingToBrowser(data.mapping)
+      }
 
       const url = window.URL.createObjectURL(blob)
       const link = document.createElement('a')
@@ -165,6 +283,58 @@ function Anonymize() {
       setError(`Ошибка API: ${message}`)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRestore = async () => {
+    if (!restoreFile) {
+      setError('Загрузите CSV с псевдонимами для восстановления')
+      return
+    }
+
+    if (!selectedMappingId.trim()) {
+      setError('Выберите mapping из сохраненных')
+      return
+    }
+
+    // Find the selected mapping in local storage
+    const selectedMapping = savedMappings.find((item) => item.id === selectedMappingId)
+    if (!selectedMapping || !selectedMapping.mapping) {
+      setError('Mapping не найден или истек')
+      return
+    }
+
+    const mappingPayload = selectedMapping.mapping.columns
+      ? selectedMapping.mapping
+      : {
+          columns: selectedMapping.mapping,
+          created_at: new Date().toISOString(),
+          version: '1.0',
+        }
+
+    setError('')
+    setRestoring(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', restoreFile)
+      // Send the full mapping as JSON string instead of just mapping_id
+      formData.append('mapping', JSON.stringify(mappingPayload))
+      
+      const blob = await deanonymizeData(formData)
+
+      const url = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `restored_${restoreFile.name}`
+      document.body.appendChild(link)
+      link.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(link)
+    } catch (err) {
+      const message = err?.message || 'Не удалось восстановить файл'
+      setError(`Ошибка API: ${message}`)
+    } finally {
+      setRestoring(false)
     }
   }
 
@@ -199,19 +369,124 @@ function Anonymize() {
       </div>
 
       {method === ANONYMIZATION_METHODS.PSEUDONYMIZATION && (
-        <div className="form-group">
-          <label className="form-label">Секретный ключ для псевдонимизации (необязательно):</label>
-          <input
-            type="text"
-            className="form-input"
-            value={pseudonymSalt}
-            onChange={(e) => setPseudonymSalt(e.target.value)}
-            placeholder="Например: project-2026-secret"
-          />
-          <div className="form-help" style={{ marginTop: '0.5rem' }}>
-            Один и тот же ключ дает одинаковые псевдонимы для одинаковых значений. Можно оставить пустым.
+        <>
+          <div className="form-group">
+            <label className="form-label">Секретный ключ для псевдонимизации (необязательно):</label>
+            <input
+              type="text"
+              className="form-input"
+              value={pseudonymSalt}
+              onChange={(e) => setPseudonymSalt(e.target.value)}
+              placeholder="Например: project-2026-secret"
+            />
+            <div className="form-help" style={{ marginTop: '0.5rem' }}>
+              Один и тот же ключ дает одинаковые псевдонимы для одинаковых значений. Можно оставить пустым.
+            </div>
           </div>
-        </div>
+
+          {latestMappingId && (
+            <div className="alert alert-success">
+              <span className="alert-icon">✓</span>
+              <div>
+                Псевдонимизация завершена. mapping_id сохранен в браузере для обратного восстановления:<br />
+                <strong>{latestMappingId}</strong>
+              </div>
+            </div>
+          )}
+
+          {savedMappings.length > 0 && (
+            <div className="card" style={{ marginTop: '1rem' }}>
+              <div className="card-title">Сохраненные псевдонимы в браузере (удаляются через {MAPPING_EXPIRY_DAYS} дней)</div>
+              <div className="table-preview" style={{ margin: '0' }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Файл</th>
+                      <th>Создано</th>
+                      <th>Удалится через</th>
+                      <th>Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {savedMappings.map((item) => (
+                      <tr key={item.id} style={{ backgroundColor: selectedMappingId === item.id ? '#f0f8ff' : 'transparent' }}>
+                        <td><code style={{ fontSize: '0.8em' }}>{item.id.substring(0, 12)}...</code></td>
+                        <td>{item.sourceFile || '-'}</td>
+                        <td>{new Date(item.createdAt).toLocaleString('ru-RU')}</td>
+                        <td>{item.expiresAt ? getTimeUntilExpiry(item.expiresAt) : '-'}</td>
+                        <td>
+                          <div className="button-group">
+                            <button
+                              type="button"
+                              className={`btn ${selectedMappingId === item.id ? 'btn-primary' : 'btn-secondary'} btn-small`}
+                              onClick={() => setSelectedMappingId(item.id)}
+                            >
+                              {selectedMappingId === item.id ? '✓ Выбран' : 'Выбрать'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-danger btn-small"
+                              onClick={() => removeSavedMapping(item.id)}
+                            >
+                              Удалить
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div className="card" style={{ marginTop: '1.5rem' }}>
+            <div className="card-title">Восстановление исходных данных</div>
+            <div className="form-group">
+              <label className="form-label">CSV с псевдонимами:</label>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                className="form-input"
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0] || null
+                  setRestoreFile(nextFile)
+                }}
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Выбрать псевдонимы для восстановления:</label>
+              {savedMappings.length === 0 ? (
+                <p style={{ color: '#999', marginTop: '0.5rem' }}>
+                  Нет сохраненных псевдонимов. Сначала выполните псевдонимизацию.
+                </p>
+              ) : (
+                <select
+                  className="form-select"
+                  value={selectedMappingId}
+                  onChange={(event) => setSelectedMappingId(event.target.value)}
+                >
+                  <option value="">-- Выберите псевдонимы --</option>
+                  {savedMappings.map((item) => (
+                    <option key={item.id} value={item.id}>
+                      {item.sourceFile || 'Без названия'} - {new Date(item.createdAt).toLocaleString('ru-RU')} (удалится через {getTimeUntilExpiry(item.expiresAt)})
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+
+            <button
+              className="btn btn-primary"
+              onClick={handleRestore}
+              disabled={restoring}
+            >
+              {restoring ? 'Восстанавливаю...' : 'Восстановить исходный CSV'}
+            </button>
+          </div>
+        </>
       )}
 
       <div className="form-group">
