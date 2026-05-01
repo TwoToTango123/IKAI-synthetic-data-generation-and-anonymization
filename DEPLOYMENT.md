@@ -125,6 +125,37 @@ docker logs -f ikai-frontend
 
 ---
 
+## Render (Docker) — использовать ваш Dockerfile
+
+Если сборка через Python runtime даёт ошибки (pydantic-core / maturin), безопасный обход — деплой через Docker. Render соберёт контейнер по вашему Dockerfile в контролируемой среде.
+
+### Подготовка
+
+- Убедитесь что в репозитории есть `docker/backend/Dockerfile` (готово) и `.dockerignore` (добавлен).
+
+### Создать Web Service (Docker)
+
+1. В Render нажмите **New → Web Service**
+2. Выберите **Docker** (Build from Dockerfile)
+3. Укажите путь к Dockerfile: `docker/backend/Dockerfile`
+4. Установите **Port**: `8000`
+5. В **Build Command / Build context** обычно не требуется (Render сам соберёт образ)
+6. В **Start Command** можно оставить пустым (Dockerfile содержит CMD), либо указать:
+   ```
+   uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level info
+   ```
+7. В разделе **Environment** добавьте переменные (см. раздел `Environment Variables` ниже)
+8. Нажмите **Create Web Service** → Render соберёт образ и запустит контейнер
+
+### Преимущества
+
+- Контроль над средой сборки — проблема с maturin исчезает
+- Быстрее и предсказуемее для production
+
+Если хотите, подготовлю короткую команду для локальной сборки образа и теста перед пушем на Render.
+
+---
+
 ## REG.RU Shared Hosting + Render Backend
 
 **Сценарий:** Frontend на REG.RU shared hosting, Backend на Render PaaS
