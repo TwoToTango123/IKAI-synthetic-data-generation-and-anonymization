@@ -1,4 +1,4 @@
-# 🐳 Docker
+# Docker
 
 Проект состоит из двух сервисов:
 
@@ -7,9 +7,9 @@
 
 ---
 
-## ⚠️ Изменения безопасности
+## Изменения безопасности
 
-✅ **Текущая версия:**
+**Текущая версия:**
 - Карты псевдонимов хранятся **только в браузере** (localStorage)
 - Сервер **не хранит** личные данные пользователей
 - Автоматическое удаление через **30 дней**
@@ -20,7 +20,7 @@
 
 ---
 
-## 📦 Быстрый старт с Docker Compose
+## Быстрый старт с Docker Compose
 
 ```bash
 cp .env.example .env
@@ -41,7 +41,7 @@ Compose использует переменные из корневого фай
 
 ---
 
-## 🚀 Что поднимается
+## Что поднимается
 
 ### Backend
 - Контейнер: `ikai-backend`
@@ -67,7 +67,7 @@ Compose использует переменные из корневого фай
 
 ---
 
-## 📊 Архитектура
+## Архитектура
 
 ```
 Browser → Frontend (Nginx :80)
@@ -77,7 +77,7 @@ Browser → Frontend (Nginx :80)
 
 ---
 
-## 🔍 Логирование
+## Логирование
 
 Логи выводятся в stdout/stderr контейнера:
 
@@ -95,15 +95,15 @@ docker logs -f ikai-frontend
 
 ---
 
-## 🌐 Deployment
+## Deployment
 
 Для развёртывания на production (Render, AWS, GCP и т.д.):
 
-👉 **[DEPLOYMENT.md](DEPLOYMENT.md)** — Полное руководство по развёртыванию на Render, REG.RU и других платформах.
+**[DEPLOYMENT.md](DEPLOYMENT.md)** — Полное руководство по развёртыванию на Render, REG.RU и других платформах.
 
 ---
 
-## 📝 API Endpoints
+## API Endpoints
 
 ### Генерация CSV
 
@@ -171,7 +171,7 @@ Response: { "status": "ok" }
 
 ---
 
-## 🧪 Локальная разработка (без Docker)
+## Локальная разработка (без Docker)
 
 ### Backend
 
@@ -206,7 +206,7 @@ Frontend: http://localhost:5173
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 **Port уже используется:**
 ```bash
@@ -228,7 +228,7 @@ docker compose --profile prod up --build  # пересоберите
 
 ---
 
-## 📄 Дополнительно
+## Дополнительно
 
 - [README.md](README.md) — Документация API и использование
 - [SECURITY_AND_PRIVACY.md](SECURITY_AND_PRIVACY.md) — Безопасность

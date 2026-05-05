@@ -8,6 +8,8 @@
 
 **Безопасность:** Данные псевдонимов хранятся только в браузере пользователя. Сервер не имеет доступа к личным данным. Автоматическое удаление через 30 дней.
 
+Демо: https://datagentool.ru/
+
 ## Документация
 
 | Документ | Описание |
@@ -74,6 +76,19 @@ uvicorn app.main:app --reload
 After startup:
 - `http://127.0.0.1:8000/docs` - Swagger UI
 - `http://127.0.0.1:8000/health` - health check
+
+## Docker Compose
+
+```bash
+cp .env.example .env
+docker compose --profile prod up --build
+```
+
+После запуска:
+- `http://localhost:3000` - frontend
+- `http://localhost:8000/docs` - backend Swagger
+
+Подробности по `dev/prod` профилям и настройкам находятся в [DOCKER.md](DOCKER.md).
 
 ## Безопасность и лимиты
 
