@@ -1,33 +1,108 @@
+name: ikai
+
+x-backend-environment: &backend-environment
+  ALLOW_ORIGINS: ${ALLOW_ORIGINS:-http://localhost:5173,http://localhost:3000}
+  MAX_FILE_SIZE_MB: ${MAX_FILE_SIZE_MB:-50}
+  MAX_CSV_ROWS: ${MAX_CSV_ROWS:-1000000}
+  RATE_LIMIT_WINDOW_SECONDS: ${RATE_LIMIT_WINDOW_SECONDS:-60}
+  RATE_LIMIT_DEFAULT_PER_WINDOW: ${RATE_LIMIT_DEFAULT_PER_WINDOW:-60}
+  RATE_LIMIT_GENERATE_PER_WINDOW: ${RATE_LIMIT_GENERATE_PER_WINDOW:-20}
+  RATE_LIMIT_ANONYMIZE_PER_WINDOW: ${RATE_LIMIT_ANONYMIZE_PER_WINDOW:-30}
+  RATE_LIMIT_DEANONYMIZE_PER_WINDOW: ${RATE_LIMIT_DEANONYMIZE_PER_WINDOW:-30}
+  RATE_LIMIT_CSV_HEADERS_PER_WINDOW: ${RATE_LIMIT_CSV_HEADERS_PER_WINDOW:-30}
+  RATE_LIMIT_VALIDATE_JSON_PER_WINDOW: ${RATE_LIMIT_VALIDATE_JSON_PER_WINDOW:-30}
+
 services:
   backend:
+    profiles: ["prod"]
     build:
       context: .
       dockerfile: docker/backend/Dockerfile
     container_name: ikai-backend
     ports:
-      - "8000:8000"
-    restart: unless-stopped
-    environment:
-      # Security settings
-      MAX_FILE_SIZE_MB: 50
-      MAX_CSV_ROWS: 1000000
-      RATE_LIMIT_WINDOW_SECONDS: 60
-      RATE_LIMIT_DEFAULT_PER_WINDOW: 60
-      RATE_LIMIT_GENERATE_PER_WINDOW: 20
-      RATE_LIMIT_ANONYMIZE_PER_WINDOW: 30
-      RATE_LIMIT_DEANONYMIZE_PER_WINDOW: 30
-      RATE_LIMIT_CSV_HEADERS_PER_WINDOW: 30
-      RATE_LIMIT_VALIDATE_JSON_PER_WINDOW: 30
+      - "${BACKEND_PORT:-8000}:8000"
+    restart: always
+    environment: *backend-environment
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   frontend:
+    profiles: ["prod"]
     build:
       context: .
       dockerfile: docker/frontend/Dockerfile
       args:
-        VITE_API_URL: /api
+        VITE_API_URL: ${FRONTEND_PROD_API_URL:-/api}
     container_name: ikai-frontend
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     ports:
-      - "3000:80"
-    restart: unless-stopped
+      - "${FRONTEND_PORT:-3000}:80"
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  backend-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      dockerfile: docker/backend/Dockerfile
+    container_name: ikai-backend-dev
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    ports:
+      - "${BACKEND_DEV_PORT:-8000}:8000"
+    restart: always
+    environment: *backend-environment
+    volumes:
+      - ./app:/app/app
+      - ./schemas:/app/schemas
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  frontend-dev:
+    profiles: ["dev"]
+    image: node:20-alpine
+    container_name: ikai-frontend-dev
+    working_dir: /frontend
+    command: ["sh", "-c", "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"]
+    depends_on:
+      backend-dev:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_DEV_PORT:-5173}:5173"
+    restart: always
+    environment:
+      VITE_API_URL: ${FRONTEND_DEV_API_URL:-http://localhost:8000/api}
+    volumes:
+      - ./frontend:/frontend
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:5173/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s

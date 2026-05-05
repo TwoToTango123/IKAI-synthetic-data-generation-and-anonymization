@@ -23,12 +23,21 @@
 ## 📦 Быстрый старт с Docker Compose
 
 ```bash
-docker-compose up --build
+cp .env.example .env
+
+# Production profile
+docker compose --profile prod up --build -d
+
+# Development profile
+docker compose --profile dev up --build
 ```
 
 Откройте:
-- **Frontend**: http://localhost:3000
+- **Production frontend**: http://localhost:3000
+- **Development frontend**: http://localhost:5173
 - **Backend Swagger**: http://localhost:8000/docs
+
+Compose использует переменные из корневого файла `.env`. Для коммита оставляйте только `.env.example`, а реальные секреты и production-значения храните в локальном `.env`.
 
 ---
 
@@ -201,16 +210,16 @@ Frontend: http://localhost:5173
 
 **Port уже используется:**
 ```bash
-# Измените порт в docker-compose.yml
-ports:
-  - "8001:8000"  # используйте 8001 вместо 8000
+# Измените переменные в .env
+BACKEND_PORT=8001
+FRONTEND_PORT=3001
 ```
 
 **Контейнер не стартует:**
 ```bash
 docker logs ikai-backend  # смотрите ошибки
-docker-compose down
-docker-compose up --build  # пересоберите
+docker compose down
+docker compose --profile prod up --build  # пересоберите
 ```
 
 **CORS ошибки при запросе с frontend:**

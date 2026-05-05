@@ -50,9 +50,9 @@ app.add_middleware(
 )
 
 # Security configuration
-MAX_FILE_SIZE_MB = 50  # 50 MB per file
+MAX_FILE_SIZE_MB = int(os.getenv("MAX_FILE_SIZE_MB", "50"))
 MAX_FILE_SIZE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024
-MAX_CSV_ROWS = 1000000  # 1 million rows max
+MAX_CSV_ROWS = int(os.getenv("MAX_CSV_ROWS", "1000000"))
 MAX_CONCURRENT_PROCESSING = 100  # Защита от DDoS
 
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
