@@ -6,15 +6,15 @@
 - обратного восстановления данных после pseudonymization по сохраненным в браузере карт;
 - валидации JSON (users/orders) по JSON Schema.
 
-**🔒 Безопасность:** Данные псевдонимов хранятся только в браузере пользователя. Сервер не имеет доступа к личным данным. Автоматическое удаление через 30 дней.
+**Безопасность:** Данные псевдонимов хранятся только в браузере пользователя. Сервер не имеет доступа к личным данным. Автоматическое удаление через 30 дней.
 
-## 📚 Документация
+## Документация
 
 | Документ | Описание |
 |----------|---------|
-| [DEPLOYMENT.md](DEPLOYMENT.md) | 🚀 Развёртывание на Render, REG.RU, Docker — начните отсюда для production |
-| [DOCKER.md](DOCKER.md) | 🐳 Docker Compose и локальная разработка |
-| [SECURITY_AND_PRIVACY.md](SECURITY_AND_PRIVACY.md) | 🔒 Безопасность, rate limiting, защита от DDoS |
+| [DEPLOYMENT.md](DEPLOYMENT.md) | Развёртывание на Render, REG.RU, Docker — начните отсюда для production |
+| [DOCKER.md](DOCKER.md) | Docker Compose и локальная разработка |
+| [SECURITY_AND_PRIVACY.md](SECURITY_AND_PRIVACY.md) | Безопасность, rate limiting, защита от DDoS |
 
 ## Stack
 
@@ -75,7 +75,7 @@ After startup:
 - `http://127.0.0.1:8000/docs` - Swagger UI
 - `http://127.0.0.1:8000/health` - health check
 
-## 🛡️ Безопасность и лимиты
+## Безопасность и лимиты
 
 - **Размер файла**: максимум 50 МБ
 - **Строк в CSV**: максимум 1,000,000
@@ -160,6 +160,20 @@ Response:
 ```powershell
 python -m unittest discover -s tests -v
 ```
+
+## CI/CD
+
+GitHub Actions pipeline находится в [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) и выполняет:
+- тесты backend;
+- сборку frontend;
+- сборку Docker-образов backend/frontend;
+- авто-деплой при push в `main`.
+
+Для deploy через Render добавьте GitHub Secrets:
+- `RENDER_BACKEND_DEPLOY_HOOK_URL` — обязателен;
+- `RENDER_FRONTEND_DEPLOY_HOOK_URL` — опционален, если frontend тоже деплоится через Render.
+
+Pipeline запускается на `pull_request`, `push` в `main` и вручную через `workflow_dispatch`.
 
 ## Logs
 
