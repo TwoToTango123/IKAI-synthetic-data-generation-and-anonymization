@@ -403,6 +403,7 @@ header {
   background-color: #fff5f5;
   border: 1px solid #fc8181;
   color: #742a2a;
+  box-shadow: 0 0 0 3px rgba(252, 129, 129, 0.15);
 }
 
 .alert-warning {

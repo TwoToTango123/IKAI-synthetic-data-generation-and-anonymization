@@ -24,6 +24,18 @@ class ApiSmokeTests(unittest.TestCase):
         self.assertIn("text/csv", response.headers["content-type"])
         self.assertIn("full_name,email,phone,city,registered_at", response.text)
 
+    def test_generate_rejects_zero_rows_with_clear_message(self) -> None:
+        response = self.client.get("/generate?rows=0&template=users")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("не может быть равно 0", response.json()["detail"])
+
+    def test_generate_rejects_too_many_rows_with_clear_message(self) -> None:
+        response = self.client.get("/generate?rows=100001&template=users")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Максимально допустимо: 100000", response.json()["detail"])
+
     def test_anonymize_masks_requested_columns(self) -> None:
         csv_content = (
             "full_name,email,phone\n"

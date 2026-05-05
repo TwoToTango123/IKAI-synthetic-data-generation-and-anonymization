@@ -186,10 +186,47 @@ def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
+def _parse_rows(rows: str) -> int:
+    rows_value = rows.strip()
+    if not rows_value:
+        raise HTTPException(
+            status_code=400,
+            detail='Укажите количество строк. Допустимый диапазон: от 1 до 100000.',
+        )
+
+    try:
+        parsed_rows = int(rows_value)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail='Количество строк должно быть целым числом от 1 до 100000.',
+        ) from exc
+
+    if parsed_rows == 0:
+        raise HTTPException(
+            status_code=400,
+            detail='Количество строк не может быть равно 0. Укажите значение от 1 до 100000.',
+        )
+
+    if parsed_rows < 0:
+        raise HTTPException(
+            status_code=400,
+            detail='Количество строк не может быть отрицательным. Укажите значение от 1 до 100000.',
+        )
+
+    if parsed_rows > 100000:
+        raise HTTPException(
+            status_code=400,
+            detail='Слишком большое количество строк. Максимально допустимо: 100000.',
+        )
+
+    return parsed_rows
+
+
 @app.get("/generate", response_class=PlainTextResponse)
 async def generate(
     request: Request,
-    rows: int = Query(100, ge=1, le=100000),
+    rows: str = Query("100"),
     template: str = Query("users"),
     country_codes: str = Query("7"),
     phone_prefix: str = Query(""),
@@ -202,6 +239,8 @@ async def generate(
     amount_max: str = Query(""),
     statuses: str = Query("new,paid,processing,completed,cancelled"),
 ):
+    parsed_rows = _parse_rows(rows)
+
     if template not in ("users", "orders"):
         raise HTTPException(status_code=400, detail="Шаблон должен быть users или orders")
 
@@ -257,7 +296,7 @@ async def generate(
             raise HTTPException(status_code=400, detail='Минимальная сумма не может быть больше максимальной')
 
         content = generate_orders_csv(
-            rows,
+            parsed_rows,
             order_date_from=order_date_from_value,
             order_date_to=order_date_to_value,
             amount_min=amount_min_value,
@@ -318,7 +357,7 @@ async def generate(
         raise HTTPException(status_code=400, detail='Дата "с" не может быть больше даты "по"')
 
     content = generate_users_csv(
-        rows,
+        parsed_rows,
         country_codes=country_codes_list,
         phone_prefix=phone_prefix or None,
         email_domains=email_domains_list,
@@ -350,11 +389,11 @@ async def anonymize(
         raise HTTPException(status_code=400, detail="Не передано имя файла")
 
     if not file.filename.lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Нужен CSV-файл")
+        raise HTTPException(status_code=400, detail="Загрузите файл в формате CSV")
 
     raw = await file.read()
     if not raw.strip():
-        raise HTTPException(status_code=400, detail="Файл пустой")
+        raise HTTPException(status_code=400, detail="Файл не содержит данных")
 
     try:
         text = _decode_csv_bytes(raw)
@@ -445,11 +484,11 @@ async def deanonymize(
         raise HTTPException(status_code=400, detail="Не передано имя файла")
 
     if not file.filename.lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Нужен CSV-файл")
+        raise HTTPException(status_code=400, detail="Загрузите файл в формате CSV")
 
     raw = await file.read()
     if not raw.strip():
-        raise HTTPException(status_code=400, detail="Файл пустой")
+        raise HTTPException(status_code=400, detail="Файл не содержит данных")
 
     try:
         text = _decode_csv_bytes(raw)
@@ -490,11 +529,11 @@ async def csv_headers(
         raise HTTPException(status_code=400, detail="Не передано имя файла")
 
     if not file.filename.lower().endswith(".csv"):
-        raise HTTPException(status_code=400, detail="Нужен CSV-файл")
+        raise HTTPException(status_code=400, detail="Загрузите файл в формате CSV")
 
     raw = await file.read()
     if not raw.strip():
-        raise HTTPException(status_code=400, detail="Файл пустой")
+        raise HTTPException(status_code=400, detail="Файл не содержит данных")
 
     try:
         text = _decode_csv_bytes(raw)

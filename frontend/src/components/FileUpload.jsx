@@ -1,7 +1,16 @@
 import React, { useState } from 'react'
 
-function FileUpload({ onFileUpload }) {
+function FileUpload({ onFileUpload, onError }) {
   const [isDragActive, setIsDragActive] = useState(false)
+
+  const validateFile = (file) => {
+    if (file.type === 'text/csv' || file.type === 'text/plain' || file.name.toLowerCase().endsWith('.csv')) {
+      onFileUpload(file)
+      return
+    }
+
+    onError?.('Загрузите файл в формате CSV. Например: users.csv или orders.csv.')
+  }
 
   const handleDrag = (e) => {
     e.preventDefault()
@@ -19,23 +28,13 @@ function FileUpload({ onFileUpload }) {
     setIsDragActive(false)
 
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0]
-      if (file.type === 'text/csv' || file.type === 'text/plain' || file.name.endsWith('.csv')) {
-        onFileUpload(file)
-      } else {
-        alert('Пожалуйста, загрузите CSV файл')
-      }
+      validateFile(e.dataTransfer.files[0])
     }
   }
 
   const handleChange = (e) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0]
-      if (file.type === 'text/csv' || file.type === 'text/plain' || file.name.endsWith('.csv')) {
-        onFileUpload(file)
-      } else {
-        alert('Пожалуйста, загрузите CSV файл')
-      }
+      validateFile(e.target.files[0])
     }
   }
 

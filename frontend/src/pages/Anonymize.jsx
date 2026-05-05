@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import FileUpload from '../components/FileUpload'
 import { anonymizeData, deanonymizeData, getCsvHeaders } from '../services/api'
 
@@ -51,6 +51,7 @@ function Anonymize() {
   const [restoring, setRestoring] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const errorRef = useRef(null)
 
   const columns = TEMPLATE_COLUMNS[template] || []
 
@@ -59,6 +60,13 @@ function Anonymize() {
     cleanupExpiredMappings()
     loadSavedMappings()
   }, [])
+
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      errorRef.current.focus()
+    }
+  }, [error])
 
   const cleanupExpiredMappings = () => {
     try {
@@ -200,18 +208,18 @@ function Anonymize() {
     } catch (err) {
       setCsvHeaders([])
       const message = err?.message || 'Не удалось прочитать заголовки CSV'
-      setError(`Ошибка API: ${message}`)
+      setError(message)
     }
   }
 
   const handleAnonymize = async () => {
     if (!file) {
-      setError('Пожалуйста, загрузите CSV файл')
+      setError('Загрузите CSV-файл для обработки')
       return
     }
 
     if (selectedColumns.length === 0) {
-      setError('Выберите хотя бы одну колонку для анонимизации')
+      setError('Выберите хотя бы одну колонку для обработки')
       return
     }
 
@@ -280,7 +288,7 @@ function Anonymize() {
       document.body.removeChild(link)
     } catch (err) {
       const message = err?.message || 'Не удалось обработать файл'
-      setError(`Ошибка API: ${message}`)
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -332,7 +340,7 @@ function Anonymize() {
       document.body.removeChild(link)
     } catch (err) {
       const message = err?.message || 'Не удалось восстановить файл'
-      setError(`Ошибка API: ${message}`)
+      setError(message)
     } finally {
       setRestoring(false)
     }
@@ -343,13 +351,13 @@ function Anonymize() {
       <h1 className="section-title">Анонимизация данных</h1>
 
       {error && (
-        <div className="alert alert-error">
+        <div className="alert alert-error" ref={errorRef} tabIndex="-1" role="alert">
           <span className="alert-icon">!</span>
           <div>{error}</div>
         </div>
       )}
 
-      {!file && <FileUpload onFileUpload={handleFileUpload} />}
+      {!file && <FileUpload onFileUpload={handleFileUpload} onError={setError} />}
 
       <div className="form-group">
         <label className="form-label">Способ анонимизации:</label>

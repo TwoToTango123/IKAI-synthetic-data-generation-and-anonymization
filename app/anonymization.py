@@ -123,7 +123,7 @@ def anonymize_csv_with_masks(
     reader = csv.DictReader(source)
 
     if reader.fieldnames is None:
-        raise ValueError("CSV не содержит заголовок")
+        raise ValueError("Первая строка CSV должна содержать названия колонок")
 
     fields = [name.strip() for name in reader.fieldnames]
     email_cols = {name.strip() for name in (email_columns or []) if name.strip()}
@@ -141,7 +141,7 @@ def anonymize_csv_with_masks(
         raise ValueError(f"Неизвестные колонки: {', '.join(sorted(unknown))}")
 
     if not all_target_cols:
-        raise ValueError("Выберите хотя бы одну колонку для маскирования")
+        raise ValueError("Выберите хотя бы одну колонку для обработки")
 
     out = io.StringIO()
     writer = csv.DictWriter(out, fieldnames=fields)
@@ -167,7 +167,7 @@ def anonymize_csv_with_masks(
         writer.writerow(row)
 
     if row_count == 0:
-        raise ValueError("CSV пустой: нет строк данных")
+        raise ValueError("CSV-файл не содержит строк данных для обработки")
 
     return out.getvalue()
 
@@ -252,7 +252,7 @@ def extract_csv_headers(content: str, target_columns: Iterable[str] | None = Non
 def _normalize_target_columns(target_columns: Iterable[str] | None) -> set[str]:
     cols = {name.strip() for name in (target_columns or []) if name.strip()}
     if not cols:
-        raise ValueError("Выберите хотя бы одну колонку")
+        raise ValueError("Выберите хотя бы одну колонку для обработки")
 
     return cols
 
@@ -276,7 +276,7 @@ def anonymize_csv_with_pseudonyms(
     reader = _read_csv_dict_reader(content, target_cols)
 
     if reader.fieldnames is None:
-        raise ValueError("CSV не содержит заголовок")
+        raise ValueError("Первая строка CSV должна содержать названия колонок")
 
     fields = [name.strip() for name in reader.fieldnames]
     mapping: dict[str, dict[str, str]] = {}
@@ -307,7 +307,7 @@ def anonymize_csv_with_pseudonyms(
         writer.writerow(row)
 
     if row_count == 0:
-        raise ValueError("CSV пустой: нет строк данных")
+        raise ValueError("CSV-файл не содержит строк данных для обработки")
 
     return out.getvalue(), mapping
 
@@ -324,7 +324,7 @@ def deanonymize_csv_with_pseudonyms(
 
     reader = _read_csv_dict_reader(content)
     if reader.fieldnames is None:
-        raise ValueError("CSV не содержит заголовок")
+        raise ValueError("Первая строка CSV должна содержать названия колонок")
 
     fields = [name.strip() for name in reader.fieldnames]
     out = io.StringIO()
@@ -353,7 +353,7 @@ def deanonymize_csv_with_pseudonyms(
         writer.writerow(row)
 
     if row_count == 0:
-        raise ValueError("CSV пустой: нет строк данных")
+        raise ValueError("CSV-файл не содержит строк данных для восстановления")
 
     if strict and missing_tokens > 0:
         raise ValueError(
@@ -373,7 +373,7 @@ def anonymize_csv_with_removal(
     reader = _read_csv_dict_reader(content, target_cols)
 
     if reader.fieldnames is None:
-        raise ValueError("CSV не содержит заголовок")
+        raise ValueError("Первая строка CSV должна содержать названия колонок")
 
     fields = [name.strip() for name in reader.fieldnames]
     if mode not in {"empty", "drop"}:
@@ -402,6 +402,6 @@ def anonymize_csv_with_removal(
             writer.writerow({key: row.get(key, "") for key in output_fields})
 
     if row_count == 0:
-        raise ValueError("CSV пустой: нет строк данных")
+        raise ValueError("CSV-файл не содержит строк данных для обработки")
 
     return out.getvalue()

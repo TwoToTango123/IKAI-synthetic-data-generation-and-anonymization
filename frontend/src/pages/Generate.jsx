@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { generateData } from '../services/api'
 
 const ALLOWED_DOMAINS = ['gmail.com', 'rambler.ru', 'mail.ru', 'yandex.ru', 'microsoft.com']
@@ -58,6 +58,14 @@ function Generate() {
   const [selectedStatuses, setSelectedStatuses] = useState(ORDER_STATUS_OPTIONS)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const errorRef = useRef(null)
+
+  useEffect(() => {
+    if (error && errorRef.current) {
+      errorRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      errorRef.current.focus()
+    }
+  }, [error])
 
   const toggleDomain = (domain) => {
     setSelectedDomains((prev) => {
@@ -95,6 +103,29 @@ function Generate() {
   }
 
   const handleGenerateClick = async () => {
+    const parsedRows = Number(rows)
+
+    if (rows === '' || rows === null || rows === undefined) {
+      setError('Укажите количество строк. Допустимый диапазон: от 1 до 100000.')
+      return
+    }
+    if (!Number.isInteger(parsedRows)) {
+      setError('Количество строк должно быть целым числом от 1 до 100000.')
+      return
+    }
+    if (parsedRows === 0) {
+      setError('Количество строк не может быть равно 0. Укажите значение от 1 до 100000.')
+      return
+    }
+    if (parsedRows < 0) {
+      setError('Количество строк не может быть отрицательным. Укажите значение от 1 до 100000.')
+      return
+    }
+    if (parsedRows > 100000) {
+      setError('Слишком большое количество строк. Максимально допустимо: 100000.')
+      return
+    }
+
     if (template === 'users') {
       if (selectedDomains.length === 0) {
         setError('Выберите хотя бы один домен электронной почты')
@@ -162,7 +193,7 @@ function Generate() {
     try {
       const blob = await generateData({
         template,
-        rows: parseInt(rows, 10),
+        rows: parsedRows,
         countryCodes: template === 'users' ? selectedCountryCodes.join(',') : undefined,
         phonePrefix: template === 'users' && phonePrefix ? phonePrefix : undefined,
         emailDomains: template === 'users' ? selectedDomains.join(',') : undefined,
@@ -184,7 +215,7 @@ function Generate() {
       document.body.removeChild(link)
     } catch (err) {
       const message = err?.message || 'Не удалось сгенерировать данные'
-      setError(`Ошибка API: ${message}`)
+      setError(message)
     } finally {
       setLoading(false)
     }
@@ -195,7 +226,7 @@ function Generate() {
       <h1 className="section-title">Генерация данных</h1>
 
       {error && (
-        <div className="alert alert-error">
+        <div className="alert alert-error" ref={errorRef} tabIndex="-1" role="alert">
           <span className="alert-icon">!</span>
           <div>{error}</div>
         </div>

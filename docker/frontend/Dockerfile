@@ -3,7 +3,8 @@ FROM node:20-alpine AS build
 WORKDIR /frontend
 
 COPY frontend/package*.json ./
-RUN npm ci
+RUN npm ci \
+    && npm cache clean --force
 
 COPY frontend ./
 
