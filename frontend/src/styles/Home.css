@@ -1,5 +1,8 @@
 /* Frame Component Styles from Figma export */
 .frame {
+	--frame-design-width: 1535;
+	--frame-min-gutter: 24px;
+	--frame-scale: min(1, calc((100vw - var(--frame-min-gutter)) / (var(--frame-design-width) * 1px)));
 	background:
 		linear-gradient(223deg, rgba(176, 216, 158, 0.06) 0%, rgba(255, 255, 255, 0.06) 100%),
 		linear-gradient(rgba(224, 224, 220, 0.37), rgba(224, 224, 220, 0.37)),
@@ -7,10 +10,27 @@
 		linear-gradient(0deg, rgba(224, 224, 220, 1) 0%, rgba(224, 224, 220, 1) 100%);
 	background-attachment: scroll, scroll, fixed, scroll;
 	min-height: max(865px, 100vh);
+	width: calc(var(--frame-design-width) * 1px);
+	max-width: 100%;
 	min-width: 1535px;
-	width: 100%;
+	margin: 0 auto;
 	position: relative;
-	overflow-x: visible;
+	overflow-x: hidden;
+}
+
+@media (max-width: 1535px) {
+	.frame {
+		zoom: var(--frame-scale);
+	}
+}
+
+@supports not (zoom: 1) {
+	@media (max-width: 1535px) {
+		.frame {
+			transform: scale(var(--frame-scale));
+			transform-origin: top left;
+		}
+	}
 }
 
 .frame .rectangle {
@@ -69,6 +89,11 @@
 	background: none;
 	cursor: pointer;
 	padding: 0;
+	transition: color 0.18s ease, opacity 0.18s ease;
+}
+
+.frame .div:hover {
+	color: #2f2f2f;
 }
 
 .frame .text-wrapper-3 {
@@ -85,6 +110,11 @@
 	background: none;
 	cursor: pointer;
 	padding: 0;
+	transition: color 0.18s ease, opacity 0.18s ease;
+}
+
+.frame .text-wrapper-3:hover {
+	color: #2f2f2f;
 }
 
 .frame .brand-icon {
@@ -139,6 +169,14 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	transition: background-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.frame .rectangle-2:hover {
+	background-color: #86a08b;
+	box-shadow:
+		0px 4px 14px rgba(0, 0, 0, 0.08),
+		inset 0px 0px 6.8px #0000000a;
 }
 
 .frame .rectangle-3 {
@@ -156,6 +194,12 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	transition: background-color 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+}
+
+.frame .rectangle-3:hover {
+	background-color: #e8e8e6;
+	box-shadow: inset 0px 0px 3px -1px #00000053, 0px 4px 14px rgba(0, 0, 0, 0.06);
 }
 
 .frame .text-wrapper-5 {
@@ -189,11 +233,9 @@
 	font-family: 'Manrope', Helvetica, sans-serif;
 	font-size: 14px;
 	font-weight: 300;
-	left: 1450px;
-	letter-spacing: 0;
-	line-height: normal;
-	position: absolute;
-	top: 837px;
+	position: fixed;
+	right: 20px;
+    bottom: 14px;
 }
 
 .frame .rectangle-4 {
