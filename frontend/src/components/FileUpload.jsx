@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 
-function FileUpload({ onFileUpload }) {
+function FileUpload({ onFileUpload, error = false }) {
   const [isDragActive, setIsDragActive] = useState(false)
 
   const handleDrag = (e) => {
@@ -41,7 +41,7 @@ function FileUpload({ onFileUpload }) {
 
   return (
     <div
-      className={`file-upload-area ${isDragActive ? 'active' : ''}`}
+      className={`file-upload-area ${isDragActive ? 'active' : ''} ${error ? 'error' : ''}`}
       onDragEnter={handleDrag}
       onDragLeave={handleDrag}
       onDragOver={handleDrag}

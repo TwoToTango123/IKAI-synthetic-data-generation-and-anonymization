@@ -1,6 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { generateData } from '../services/api'
 import { parseCsvPreview } from '../utils/csvPreview'
+import Box from '../components/Box'
+import '../styles/Home.css'
+import StatusModal from '../components/StatusModal'
+import '../styles/GenScreen.css'
 
 const ALLOWED_DOMAINS = ['gmail.com', 'rambler.ru', 'mail.ru', 'yandex.ru', 'microsoft.com']
 const ORDER_STATUS_OPTIONS = ['new', 'paid', 'processing', 'completed', 'cancelled']
@@ -43,7 +47,7 @@ const COUNTRY_CODE_OPTIONS = [
 
 const PREVIEW_ROW_LIMIT = 5
 
-function Generate() {
+function Generate({ setActiveTab }) {
   const [template, setTemplate] = useState('users')
   const [rows, setRows] = useState(1000)
   const [selectedDomains, setSelectedDomains] = useState(ALLOWED_DOMAINS)
@@ -62,6 +66,7 @@ function Generate() {
   const [loading, setLoading] = useState(false)
   const [preview, setPreview] = useState(null)
   const [notification, setNotification] = useState(null)
+  const [fieldErrors, setFieldErrors] = useState({})
   const notificationTimerRef = useRef(null)
 
   useEffect(() => {
@@ -82,7 +87,75 @@ function Generate() {
     }, 3500)
   }
 
+  const clearFieldError = (fieldName) => {
+    setFieldErrors((prev) => {
+      if (!prev[fieldName]) {
+        return prev
+      }
+      const nextErrors = { ...prev }
+      delete nextErrors[fieldName]
+      return nextErrors
+    })
+  }
+
+  const validateForm = () => {
+    const nextErrors = {}
+
+    if (!rows || Number.isNaN(Number(rows)) || Number(rows) <= 0) {
+      nextErrors.rows = 'Укажите корректное количество строк'
+    }
+
+    if (template === 'users') {
+      if (selectedDomains.length === 0) {
+        nextErrors.selectedDomains = 'Выберите хотя бы один домен электронной почты'
+      }
+      if (phonePrefix && !/^\d{1,3}$/.test(phonePrefix)) {
+        nextErrors.phonePrefix = 'Префикс телефона должен содержать от 1 до 3 цифр'
+      }
+      if (selectedCountryCodes.length === 0) {
+        nextErrors.selectedCountryCodes = 'Выберите хотя бы один код страны'
+      }
+      if (registrationMode === 'range' && (!registeredFrom || !registeredTo)) {
+        nextErrors.registration = 'Выберите обе даты регистрации'
+      }
+      if (registrationMode === 'range' && registeredFrom && registeredTo && registeredFrom > registeredTo) {
+        nextErrors.registration = 'Дата "с" не может быть больше даты "по"'
+      }
+    }
+
+    if (template === 'orders') {
+      if (selectedStatuses.length === 0) {
+        nextErrors.selectedStatuses = 'Выберите хотя бы один статус'
+      }
+      if (orderDateMode === 'range' && (!orderDateFrom || !orderDateTo)) {
+        nextErrors.orderDate = 'Выберите обе даты заказа'
+      }
+      if (orderDateMode === 'range' && orderDateFrom && orderDateTo && orderDateFrom > orderDateTo) {
+        nextErrors.orderDate = 'Дата заказа "с" не может быть больше даты "по"'
+      }
+      if (amountMode === 'range' && (amountMin === '' || amountMax === '')) {
+        nextErrors.amount = 'Укажите минимальную и максимальную сумму'
+      }
+      if (amountMode === 'range') {
+        const min = Number(amountMin)
+        const max = Number(amountMax)
+        if (Number.isNaN(min) || Number.isNaN(max)) {
+          nextErrors.amount = 'Диапазон суммы должен содержать числа'
+        } else if (min < 0) {
+          nextErrors.amount = 'Минимальная сумма не может быть отрицательной'
+        } else if (max <= 0) {
+          nextErrors.amount = 'Максимальная сумма должна быть больше 0'
+        } else if (min > max) {
+          nextErrors.amount = 'Минимальная сумма не может быть больше максимальной'
+        }
+      }
+    }
+
+    return nextErrors
+  }
+
   const toggleDomain = (domain) => {
+    clearFieldError('selectedDomains')
     setSelectedDomains((prev) => {
       if (prev.includes(domain)) {
         return prev.filter((item) => item !== domain)
@@ -92,6 +165,7 @@ function Generate() {
   }
 
   const toggleCountryCode = (code) => {
+    clearFieldError('selectedCountryCodes')
     setSelectedCountryCodes((prev) => {
       if (prev.includes(code)) {
         return prev.filter((item) => item !== code)
@@ -101,14 +175,17 @@ function Generate() {
   }
 
   const selectAllCountryCodes = () => {
+    clearFieldError('selectedCountryCodes')
     setSelectedCountryCodes(COUNTRY_CODE_OPTIONS.map((option) => option.value))
   }
 
   const clearAllCountryCodes = () => {
+    clearFieldError('selectedCountryCodes')
     setSelectedCountryCodes([])
   }
 
   const toggleStatus = (status) => {
+    clearFieldError('selectedStatuses')
     setSelectedStatuses((prev) => {
       if (prev.includes(status)) {
         return prev.filter((item) => item !== status)
@@ -118,66 +195,12 @@ function Generate() {
   }
 
   const handleGenerateClick = async () => {
-    if (template === 'users') {
-      if (selectedDomains.length === 0) {
-        showNotification('error', 'Выберите хотя бы один домен электронной почты')
-        return
-      }
-      if (phonePrefix && !/^\d{1,3}$/.test(phonePrefix)) {
-        showNotification('error', 'Префикс телефона должен содержать от 1 до 3 цифр')
-        return
-      }
-      if (selectedCountryCodes.length === 0) {
-        showNotification('error', 'Выберите хотя бы один код страны')
-        return
-      }
-      if (registrationMode === 'range' && (!registeredFrom || !registeredTo)) {
-        showNotification('error', 'Выберите обе даты: с и по')
-        return
-      }
-      if (registrationMode === 'range' && registeredFrom > registeredTo) {
-        showNotification('error', 'Дата "с" не может быть больше даты "по"')
-        return
-      }
-    }
-
-    if (template === 'orders') {
-      if (selectedStatuses.length === 0) {
-        showNotification('error', 'Выберите хотя бы один статус')
-        return
-      }
-      if (orderDateMode === 'range' && (!orderDateFrom || !orderDateTo)) {
-        showNotification('error', 'Выберите обе даты заказа: с и по')
-        return
-      }
-      if (orderDateMode === 'range' && orderDateFrom > orderDateTo) {
-        showNotification('error', 'Дата заказа "с" не может быть больше даты "по"')
-        return
-      }
-      if (amountMode === 'range' && (amountMin === '' || amountMax === '')) {
-        showNotification('error', 'Укажите минимальную и максимальную сумму')
-        return
-      }
-      if (amountMode === 'range') {
-        const min = Number(amountMin)
-        const max = Number(amountMax)
-        if (Number.isNaN(min) || Number.isNaN(max)) {
-          showNotification('error', 'Диапазон суммы должен содержать числа')
-          return
-        }
-        if (min < 0) {
-          showNotification('error', 'Минимальная сумма не может быть отрицательной')
-          return
-        }
-        if (max <= 0) {
-          showNotification('error', 'Максимальная сумма должна быть больше 0')
-          return
-        }
-        if (min > max) {
-          showNotification('error', 'Минимальная сумма не может быть больше максимальной')
-          return
-        }
-      }
+    const nextErrors = validateForm()
+    setFieldErrors(nextErrors)
+    const firstError = Object.values(nextErrors)[0]
+    if (firstError) {
+      showNotification('error', firstError)
+      return
     }
 
     setLoading(true)
@@ -223,326 +246,439 @@ function Generate() {
   }
 
   return (
-    <div className="container">
-      <h1 className="section-title">Генерация данных</h1>
-
-      {notification && (
-        <div className={`toast toast-${notification.type}`} role="status" aria-live="polite">
-          <span className="toast-icon">{notification.type === 'success' ? '✓' : '!'}</span>
-          <div className="toast-content">{notification.message}</div>
-          <button
-            type="button"
-            className="toast-close"
-            onClick={() => setNotification(null)}
-            aria-label="Закрыть уведомление"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      <div className="form-group">
-        <label className="form-label">Шаблон:</label>
-        <select
-          className="form-select"
-          value={template}
-          onChange={(e) => setTemplate(e.target.value)}
-        >
-          <option value="users">Пользователи (users.csv)</option>
-          <option value="orders">Заказы (orders.csv)</option>
-        </select>
-      </div>
-
-      <div className="form-group">
-        <label className="form-label">Количество строк:</label>
-        <input
-          type="number"
-          className="form-input"
-          value={rows}
-          onChange={(e) => setRows(e.target.value)}
-          min="1"
-          max="100000"
-        />
-      </div>
-
-      {template === 'users' && (
-        <>
-          <div className="form-group">
-            <label className="form-label">Домены email:</label>
-            <div className="checkbox-group">
-              {ALLOWED_DOMAINS.map((domain) => (
-                <div className="checkbox-item" key={domain}>
-                  <input
-                    id={`domain-${domain}`}
-                    type="checkbox"
-                    checked={selectedDomains.includes(domain)}
-                    onChange={() => toggleDomain(domain)}
-                  />
-                  <label htmlFor={`domain-${domain}`}>{domain}</label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Коды страны:</label>
-            <div className="button-group" style={{ marginBottom: '0.75rem' }}>
-              <button
-                type="button"
-                className="btn btn-secondary btn-small"
-                onClick={selectAllCountryCodes}
-              >
-                Выбрать все
-              </button>
-              <button
-                type="button"
-                className="btn btn-secondary btn-small"
-                onClick={clearAllCountryCodes}
-              >
-                Снять все
-              </button>
-            </div>
-            <div className="checkbox-group">
-              {COUNTRY_CODE_OPTIONS.map((option) => (
-                <div className="checkbox-item" key={option.value}>
-                  <input
-                    id={`country-${option.value}`}
-                    type="checkbox"
-                    checked={selectedCountryCodes.includes(option.value)}
-                    onChange={() => toggleCountryCode(option.value)}
-                  />
-                  <label htmlFor={`country-${option.value}`}>{option.label}</label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Префикс телефона (1-3 цифры после выбранного кода страны, необязательно):</label>
-            <input
-              type="text"
-              className="form-input"
-              value={phonePrefix}
-              onChange={(e) => setPhonePrefix(e.target.value.replace(/\D/g, '').slice(0, 3))}
-              placeholder="Например: 916 (или оставьте пустым)"
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Дата регистрации:</label>
-            <div className="radio-group">
-              <div className="radio-item">
-                <input
-                  id="reg-any"
-                  type="radio"
-                  name="reg-mode"
-                  checked={registrationMode === 'any'}
-                  onChange={() => setRegistrationMode('any')}
-                />
-                <label htmlFor="reg-any">Любая</label>
-              </div>
-              <div className="radio-item">
-                <input
-                  id="reg-range"
-                  type="radio"
-                  name="reg-mode"
-                  checked={registrationMode === 'range'}
-                  onChange={() => setRegistrationMode('range')}
-                />
-                <label htmlFor="reg-range">Диапазон (с даты по дату)</label>
-              </div>
-            </div>
-            {registrationMode === 'range' && (
-              <div className="grid grid-2" style={{ marginTop: '0.75rem' }}>
-                <div>
-                  <label className="form-label">С даты:</label>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={registeredFrom}
-                    onChange={(e) => setRegisteredFrom(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="form-label">По дату:</label>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={registeredTo}
-                    onChange={(e) => setRegisteredTo(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-        </>
-      )}
-
-      {template === 'orders' && (
-        <>
-          <div className="form-group">
-            <label className="form-label">Дата заказа:</label>
-            <div className="radio-group">
-              <div className="radio-item">
-                <input
-                  id="order-date-any"
-                  type="radio"
-                  name="order-date-mode"
-                  checked={orderDateMode === 'any'}
-                  onChange={() => setOrderDateMode('any')}
-                />
-                <label htmlFor="order-date-any">Любая</label>
-              </div>
-              <div className="radio-item">
-                <input
-                  id="order-date-range"
-                  type="radio"
-                  name="order-date-mode"
-                  checked={orderDateMode === 'range'}
-                  onChange={() => setOrderDateMode('range')}
-                />
-                <label htmlFor="order-date-range">Диапазон (с даты по дату)</label>
-              </div>
-            </div>
-            {orderDateMode === 'range' && (
-              <div className="grid grid-2" style={{ marginTop: '0.75rem' }}>
-                <div>
-                  <label className="form-label">С даты:</label>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={orderDateFrom}
-                    onChange={(e) => setOrderDateFrom(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="form-label">По дату:</label>
-                  <input
-                    type="date"
-                    className="form-input"
-                    value={orderDateTo}
-                    onChange={(e) => setOrderDateTo(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Сумма:</label>
-            <div className="radio-group">
-              <div className="radio-item">
-                <input
-                  id="amount-any"
-                  type="radio"
-                  name="amount-mode"
-                  checked={amountMode === 'any'}
-                  onChange={() => setAmountMode('any')}
-                />
-                <label htmlFor="amount-any">Любая</label>
-              </div>
-              <div className="radio-item">
-                <input
-                  id="amount-range"
-                  type="radio"
-                  name="amount-mode"
-                  checked={amountMode === 'range'}
-                  onChange={() => setAmountMode('range')}
-                />
-                <label htmlFor="amount-range">Диапазон</label>
-              </div>
-            </div>
-            {amountMode === 'range' && (
-              <div className="grid grid-2" style={{ marginTop: '0.75rem' }}>
-                <div>
-                  <label className="form-label">Минимум:</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    min="0"
-                    step="0.01"
-                    value={amountMin}
-                    onChange={(e) => setAmountMin(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="form-label">Максимум:</label>
-                  <input
-                    type="number"
-                    className="form-input"
-                    min="0"
-                    step="0.01"
-                    value={amountMax}
-                    onChange={(e) => setAmountMax(e.target.value)}
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">Статусы:</label>
-            <div className="checkbox-group">
-              {ORDER_STATUS_OPTIONS.map((status) => (
-                <div className="checkbox-item" key={status}>
-                  <input
-                    id={`status-${status}`}
-                    type="checkbox"
-                    checked={selectedStatuses.includes(status)}
-                    onChange={() => toggleStatus(status)}
-                  />
-                  <label htmlFor={`status-${status}`}>{status}</label>
-                </div>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
-
-      <button
-        className="btn btn-success btn-large btn-block"
-        onClick={handleGenerateClick}
-        disabled={loading}
+    <div className="frame gen-screen">
+      <div className="rectangle" />
+      <p
+        className="datagen-tool"
+        onClick={() => setActiveTab('home')}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            setActiveTab('home')
+          }
+        }}
+        role="button"
+        tabIndex={0}
       >
-        {loading ? 'Генерирую...' : 'Сгенерировать'}
+        <span className="text-wrapper">DataGen</span>
+        <span className="span">&nbsp;</span>
+        <span className="text-wrapper-2">Tool</span>
+      </p>
+      <button className="div" onClick={() => setActiveTab('generate')}>
+        Генерация
       </button>
+      <button className="text-wrapper-3" onClick={() => setActiveTab('anonymize')}>
+        Анонимизация
+      </button>
+      <div
+        className="brand-icon"
+        onClick={() => setActiveTab('home')}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            setActiveTab('home')
+          }
+        }}
+        role="button"
+        tabIndex={0}
+      >
+        <Box />
+      </div>
+
+      <div className="footer-copyright">® IKAI 2026</div>
+
+      <StatusModal
+        open={Boolean(notification)}
+        type={notification?.type || 'info'}
+        title={notification?.type === 'success' ? 'Готово' : 'Ошибка'}
+        message={notification?.message || ''}
+        onClose={() => setNotification(null)}
+      />
+
+      <div className="main-form-card">
+        <h1 className="main-title">Генерация данных</h1>
+
+        <div className="field-grid">
+          {/* Row 1 */}
+          <div className="field-group">
+            <label className="field-label">Шаблон:</label>
+            <div className="input-container">
+              <select
+                className="form-select"
+                value={template}
+                onChange={(e) => {
+                  setTemplate(e.target.value)
+                  setFieldErrors({})
+                }}
+              >
+                <option value="users">Пользователи (users.csv)</option>
+                <option value="orders">Заказы (orders.csv)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="field-group">
+            <label className="field-label">Количество строк:</label>
+            <div className={`input-container${fieldErrors.rows ? ' error' : ''}`}>
+              <input
+                type="number"
+                className="form-input"
+                value={rows}
+                onChange={(e) => {
+                  setRows(e.target.value)
+                  clearFieldError('rows')
+                }}
+              />
+            </div>
+            {fieldErrors.rows && <div className="field-error">{fieldErrors.rows}</div>}
+          </div>
+
+          {/* Template Specific Rows */}
+          {template === 'users' ? (
+            <>
+              {/* Users Row 2: Domains */}
+              <div className={`field-group${fieldErrors.selectedDomains ? ' error' : ''}`} style={{ gridColumn: 'span 2' }}>
+                <label className="field-label">Домены email:</label>
+                <div className="checkbox-grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+                  {ALLOWED_DOMAINS.map((domain) => (
+                    <label className="custom-checkbox" key={domain}>
+                      <input
+                        type="checkbox"
+                        checked={selectedDomains.includes(domain)}
+                        onChange={() => toggleDomain(domain)}
+                      />
+                      <div className="checkbox-box">
+                        <div className="checkbox-inner" />
+                      </div>
+                      <span className="checkbox-label">{domain}</span>
+                    </label>
+                  ))}
+                </div>
+                {fieldErrors.selectedDomains && <div className="field-error">{fieldErrors.selectedDomains}</div>}
+              </div>
+
+              {/* Users Row 3: Country Codes */}
+              <div className={`field-group${fieldErrors.selectedCountryCodes ? ' error' : ''}`} style={{ gridColumn: 'span 2' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '20px', marginBottom: '10px' }}>
+                  <label className="field-label" style={{ marginBottom: 0 }}>Коды страны:</label>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button className="small-btn" onClick={selectAllCountryCodes}>Выбрать все</button>
+                    <button className="small-btn" onClick={clearAllCountryCodes}>Снять все</button>
+                  </div>
+                </div>
+                <div className="checkbox-grid countries">
+                  {COUNTRY_CODE_OPTIONS.map((option) => (
+                    <label className="custom-checkbox" key={option.value}>
+                      <input
+                        type="checkbox"
+                        checked={selectedCountryCodes.includes(option.value)}
+                        onChange={() => toggleCountryCode(option.value)}
+                      />
+                      <div className="checkbox-box">
+                        <div className="checkbox-inner" />
+                      </div>
+                      <span className="checkbox-label">{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+                {fieldErrors.selectedCountryCodes && <div className="field-error">{fieldErrors.selectedCountryCodes}</div>}
+              </div>
+
+              {/* Users Row 4: Phone Prefix */}
+              <div className={`field-group${fieldErrors.phonePrefix || fieldErrors.registration ? ' error' : ''}`} style={{ gridColumn: 'span 2' }}>
+                <label className="field-label">Префикс телефона (1-3 цифры после выбранного кода страны, необязательно):</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                  <div className={`input-container${fieldErrors.phonePrefix ? ' error' : ''}`} style={{ width: '239px' }}>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={phonePrefix}
+                      onChange={(e) => {
+                        setPhonePrefix(e.target.value.replace(/\D/g, '').slice(0, 3))
+                        clearFieldError('phonePrefix')
+                      }}
+                    />
+                  </div>
+                  <span className="phone-prefix-hint">Например: 916 (или оставьте пустым)</span>
+                </div>
+                {fieldErrors.phonePrefix && <div className="field-error">{fieldErrors.phonePrefix}</div>}
+              </div>
+
+              {/* Users Row 5: Registration Date */}
+              <div className={`field-group${fieldErrors.registration ? ' error' : ''}`} style={{ gridColumn: 'span 2' }}>
+                <label className="field-label">Дата регистрации:</label>
+                <div className="radio-field-group">
+                  <label className="custom-radio">
+                    <input
+                      type="radio"
+                      checked={registrationMode === 'any'}
+                      onChange={() => {
+                        setRegistrationMode('any')
+                        clearFieldError('registration')
+                      }}
+                    />
+                    <div className="radio-circle">
+                      <div className="radio-dot" />
+                    </div>
+                    <span className="checkbox-label">Любая</span>
+                  </label>
+                  <label className="custom-radio">
+                    <input
+                      type="radio"
+                      checked={registrationMode === 'range'}
+                      onChange={() => {
+                        setRegistrationMode('range')
+                        clearFieldError('registration')
+                      }}
+                    />
+                    <div className="radio-circle">
+                      <div className="radio-dot" />
+                    </div>
+                    <span className="checkbox-label">Диапазон (с даты по дату)</span>
+                  </label>
+                </div>
+                {registrationMode === 'range' && (
+                  <div className="range-row">
+                    <div className="range-item date-range-item">
+                      <span className="checkbox-label">с:</span>
+                      <div className={`input-container${fieldErrors.registration ? ' error' : ''}`}>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={registeredFrom}
+                          onChange={(e) => {
+                            setRegisteredFrom(e.target.value)
+                            clearFieldError('registration')
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="range-item date-range-item">
+                      <span className="checkbox-label">по:</span>
+                      <div className={`input-container${fieldErrors.registration ? ' error' : ''}`}>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={registeredTo}
+                          onChange={(e) => {
+                            setRegisteredTo(e.target.value)
+                            clearFieldError('registration')
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {fieldErrors.registration && <div className="field-error">{fieldErrors.registration}</div>}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Orders Row 2: Date */}
+              <div className={`field-group${fieldErrors.orderDate ? ' error' : ''}`}>
+                <label className="field-label">Дата заказа:</label>
+                <div className="radio-field-group">
+                  <label className="custom-radio">
+                    <input
+                      type="radio"
+                      checked={orderDateMode === 'any'}
+                      onChange={() => {
+                        setOrderDateMode('any')
+                        clearFieldError('orderDate')
+                      }}
+                    />
+                    <div className="radio-circle">
+                      <div className="radio-dot" />
+                    </div>
+                    <span className="checkbox-label">Любая</span>
+                  </label>
+                  <label className="custom-radio">
+                    <input
+                      type="radio"
+                      checked={orderDateMode === 'range'}
+                      onChange={() => {
+                        setOrderDateMode('range')
+                        clearFieldError('orderDate')
+                      }}
+                    />
+                    <div className="radio-circle">
+                      <div className="radio-dot" />
+                    </div>
+                    <span className="checkbox-label">Диапазон (с даты по дату)</span>
+                  </label>
+                </div>
+                {orderDateMode === 'range' && (
+                  <div className="range-row">
+                    <div className="range-item date-range-item">
+                      <span className="checkbox-label">с:</span>
+                      <div className={`input-container${fieldErrors.orderDate ? ' error' : ''}`}>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={orderDateFrom}
+                          onChange={(e) => {
+                            setOrderDateFrom(e.target.value)
+                            clearFieldError('orderDate')
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="range-item date-range-item">
+                      <span className="checkbox-label">по:</span>
+                      <div className={`input-container${fieldErrors.orderDate ? ' error' : ''}`}>
+                        <input
+                          type="date"
+                          className="form-input"
+                          value={orderDateTo}
+                          onChange={(e) => {
+                            setOrderDateTo(e.target.value)
+                            clearFieldError('orderDate')
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {fieldErrors.orderDate && <div className="field-error">{fieldErrors.orderDate}</div>}
+              </div>
+
+              {/* Orders Row 2 Right: Amount */}
+              <div className={`field-group${fieldErrors.amount ? ' error' : ''}`}>
+                <label className="field-label">Сумма:</label>
+                <div className="radio-field-group">
+                  <label className="custom-radio">
+                    <input
+                      type="radio"
+                      checked={amountMode === 'any'}
+                      onChange={() => {
+                        setAmountMode('any')
+                        clearFieldError('amount')
+                      }}
+                    />
+                    <div className="radio-circle">
+                      <div className="radio-dot" />
+                    </div>
+                    <span className="checkbox-label">Любая</span>
+                  </label>
+                  <label className="custom-radio">
+                    <input
+                      type="radio"
+                      checked={amountMode === 'range'}
+                      onChange={() => {
+                        setAmountMode('range')
+                        clearFieldError('amount')
+                      }}
+                    />
+                    <div className="radio-circle">
+                      <div className="radio-dot" />
+                    </div>
+                    <span className="checkbox-label">Диапазон</span>
+                  </label>
+                </div>
+                {amountMode === 'range' && (
+                  <div className="range-row">
+                    <div className="range-item">
+                      <span className="checkbox-label">минимум:</span>
+                      <div className={`input-container${fieldErrors.amount ? ' error' : ''}`}>
+                        <input
+                          type="number"
+                          className="form-input"
+                          value={amountMin}
+                          onChange={(e) => {
+                            setAmountMin(e.target.value)
+                            clearFieldError('amount')
+                          }}
+                        />
+                      </div>
+                    </div>
+                    <div className="range-item">
+                      <span className="checkbox-label">максимум:</span>
+                      <div className={`input-container${fieldErrors.amount ? ' error' : ''}`}>
+                        <input
+                          type="number"
+                          className="form-input"
+                          value={amountMax}
+                          onChange={(e) => {
+                            setAmountMax(e.target.value)
+                            clearFieldError('amount')
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {fieldErrors.amount && <div className="field-error">{fieldErrors.amount}</div>}
+              </div>
+
+              {/* Orders Row 3: Statuses */}
+              <div className={`field-group${fieldErrors.selectedStatuses ? ' error' : ''}`} style={{ gridColumn: 'span 2' }}>
+                <label className="field-label">Статусы:</label>
+                <div className="checkbox-grid">
+                  {ORDER_STATUS_OPTIONS.map((status) => (
+                    <label className="custom-checkbox" key={status}>
+                      <input
+                        type="checkbox"
+                        checked={selectedStatuses.includes(status)}
+                        onChange={() => toggleStatus(status)}
+                      />
+                      <div className="checkbox-box">
+                        <div className="checkbox-inner" />
+                      </div>
+                      <span className="checkbox-label">{status}</span>
+                    </label>
+                  ))}
+                </div>
+                {fieldErrors.selectedStatuses && <div className="field-error">{fieldErrors.selectedStatuses}</div>}
+              </div>
+            </>
+          )}
+        </div>
+
+        <button
+          className="submit-btn"
+          onClick={handleGenerateClick}
+          disabled={loading}
+          aria-busy={loading}
+        >
+          <span className="button-content">
+            {loading && <span className="loading button-spinner" aria-hidden="true" />}
+            <span>{loading ? 'Генерирую...' : 'Сгенерировать'}</span>
+          </span>
+        </button>
+
+        {loading && (
+          <div className="loading-bar" aria-hidden="true">
+            <span />
+          </div>
+        )}
+      </div>
 
       {preview && (
-        <section className="preview-section">
-          <div className="card">
-            <div className="card-title">Предпросмотр результата</div>
-            <div className="preview-meta">
-              Файл {preview.fileName}. Показаны первые {preview.rows.length} строк.
-            </div>
+        <div className="preview-container">
+          <h2 className="main-title" style={{ fontSize: '20px', marginBottom: '15px' }}>Предпросмотр результата</h2>
+          <p className="phone-prefix-hint" style={{ marginBottom: '15px' }}>
+            Файл {preview.fileName}. Показаны первые {preview.rows.length} строк.
+          </p>
 
-            {preview.headers.length > 0 && preview.rows.length > 0 ? (
-              <div className="table-preview preview-table">
-                <table>
-                  <thead>
-                    <tr>
-                      {preview.headers.map((header) => (
-                        <th key={header}>{header || '—'}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {preview.rows.map((row, rowIndex) => (
-                      <tr key={`${preview.fileName}-${rowIndex}`}>
-                        {preview.headers.map((_, cellIndex) => (
-                          <td key={`${preview.fileName}-${rowIndex}-${cellIndex}`}>
-                            {row[cellIndex] || '—'}
-                          </td>
-                        ))}
-                      </tr>
+          <div className="table-preview" style={{ background: 'white', borderRadius: '12px', border: 'none' }}>
+            <table>
+              <thead>
+                <tr>
+                  {preview.headers.map((header) => (
+                    <th key={header}>{header || '—'}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {preview.rows.map((row, rowIndex) => (
+                  <tr key={rowIndex}>
+                    {preview.headers.map((_, cellIndex) => (
+                      <td key={cellIndex}>{row[cellIndex] || '—'}</td>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="preview-empty">Не удалось разобрать CSV для предпросмотра.</div>
-            )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </section>
+        </div>
       )}
     </div>
   )

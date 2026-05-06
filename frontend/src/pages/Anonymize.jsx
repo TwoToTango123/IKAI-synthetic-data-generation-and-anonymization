@@ -2,6 +2,10 @@ import React, { useEffect, useRef, useState } from 'react'
 import FileUpload from '../components/FileUpload'
 import { anonymizeData, getCsvHeaders } from '../services/api'
 import { parseCsvPreview } from '../utils/csvPreview'
+import Box from '../components/Box'
+import '../styles/Home.css'
+import StatusModal from '../components/StatusModal'
+import '../styles/GenScreen.css'
 
 const TEMPLATE_COLUMNS = {
   users: ['full_name', 'email', 'phone', 'city'],
@@ -35,7 +39,7 @@ const ANONYMIZATION_METHODS = {
 
 const PREVIEW_ROW_LIMIT = 5
 
-function Anonymize() {
+function Anonymize({ setActiveTab }) {
   const [template, setTemplate] = useState('users')
   const [selectedColumns, setSelectedColumns] = useState(DEFAULT_SELECTION.users)
   const [file, setFile] = useState(null)
@@ -47,6 +51,7 @@ function Anonymize() {
   const [inputPreview, setInputPreview] = useState(null)
   const [outputPreview, setOutputPreview] = useState(null)
   const [notification, setNotification] = useState(null)
+  const [fieldErrors, setFieldErrors] = useState({})
   const notificationTimerRef = useRef(null)
 
   useEffect(() => {
@@ -67,6 +72,17 @@ function Anonymize() {
     }, 3500)
   }
 
+  const clearFieldError = (fieldName) => {
+    setFieldErrors((prev) => {
+      if (!prev[fieldName]) {
+        return prev
+      }
+      const nextErrors = { ...prev }
+      delete nextErrors[fieldName]
+      return nextErrors
+    })
+  }
+
   const columns = TEMPLATE_COLUMNS[template] || []
 
   const handleTemplateChange = (event) => {
@@ -74,6 +90,7 @@ function Anonymize() {
     setTemplate(nextTemplate)
     setSelectedColumns(DEFAULT_SELECTION[nextTemplate] || [])
     setOutputPreview(null)
+    setFieldErrors({})
   }
 
   const handleMethodChange = (event) => {
@@ -87,9 +104,11 @@ function Anonymize() {
       setSelectedColumns([])
     }
     setOutputPreview(null)
+    setFieldErrors({})
   }
 
   const toggleColumn = (column) => {
+    clearFieldError('columns')
     setSelectedColumns((prev) => {
       if (prev.includes(column)) {
         return prev.filter((item) => item !== column)
@@ -101,6 +120,8 @@ function Anonymize() {
   const handleFileUpload = async (uploadedFile) => {
     setFile(uploadedFile)
     setOutputPreview(null)
+    clearFieldError('file')
+    clearFieldError('columns')
 
     try {
       const sourceText = await uploadedFile.text()
@@ -125,13 +146,18 @@ function Anonymize() {
   }
 
   const handleAnonymize = async () => {
+    const nextErrors = {}
     if (!file) {
-      showNotification('error', 'Пожалуйста, загрузите CSV файл')
-      return
+      nextErrors.file = 'Пожалуйста, загрузите CSV файл'
+    }
+    if (selectedColumns.length === 0) {
+      nextErrors.columns = 'Выберите хотя бы одну колонку для анонимизации'
     }
 
-    if (selectedColumns.length === 0) {
-      showNotification('error', 'Выберите хотя бы одну колонку для анонимизации')
+    setFieldErrors(nextErrors)
+    const firstError = Object.values(nextErrors)[0]
+    if (firstError) {
+      showNotification('error', firstError)
       return
     }
 
@@ -215,7 +241,7 @@ function Anonymize() {
     }
 
     return (
-      <div className="table-preview preview-table">
+      <div className="table-preview preview-table" style={{ background: 'white', border: 'none' }}>
         <table>
           <thead>
             <tr>
@@ -241,180 +267,186 @@ function Anonymize() {
   }
 
   return (
-    <div className="container">
-      <h1 className="section-title">Анонимизация данных</h1>
-
-      {notification && (
-        <div className={`toast toast-${notification.type}`} role="status" aria-live="polite">
-          <span className="toast-icon">{notification.type === 'success' ? '✓' : '!'}</span>
-          <div className="toast-content">{notification.message}</div>
-          <button
-            type="button"
-            className="toast-close"
-            onClick={() => setNotification(null)}
-            aria-label="Закрыть уведомление"
-          >
-            ×
-          </button>
-        </div>
-      )}
-
-      {!file && <FileUpload onFileUpload={handleFileUpload} />}
-
-      <div className="form-group">
-        <label className="form-label">Способ анонимизации:</label>
-        <select className="form-select" value={method} onChange={handleMethodChange}>
-          <option value={ANONYMIZATION_METHODS.MASKING}>Маскирование</option>
-          <option value={ANONYMIZATION_METHODS.PSEUDONYMIZATION}>Псевдонимизация</option>
-          <option value={ANONYMIZATION_METHODS.REMOVE}>Удаление/замена на пустое</option>
-        </select>
-        <div className="alert alert-info" style={{ marginTop: '0.75rem' }}>
-          <span className="alert-icon">i</span>
-          <div>
-            {method === ANONYMIZATION_METHODS.MASKING && 'Маскирование: частично скрывает значения по типу колонки (email/телефон/дата и т.д.).'}
-            {method === ANONYMIZATION_METHODS.PSEUDONYMIZATION && 'Псевдонимизация: заменяет исходные значения на стабильные псевдонимы (одинаковые значения -> одинаковый псевдоним).'}
-            {method === ANONYMIZATION_METHODS.REMOVE && 'Удаление/замена на пустое: выберите отдельные колонки из файла, затем очистите их значения или удалите полностью.'}
-          </div>
-        </div>
+    <div className="frame gen-screen">
+      <div className="rectangle" />
+      <p
+        className="datagen-tool"
+        onClick={() => setActiveTab('home')}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            setActiveTab('home')
+          }
+        }}
+        role="button"
+        tabIndex={0}
+      >
+        <span className="text-wrapper">DataGen</span>
+        <span className="span">&nbsp;</span>
+        <span className="text-wrapper-2">Tool</span>
+      </p>
+      <button className="div" onClick={() => setActiveTab('generate')}>
+        Генерация
+      </button>
+      <button className="text-wrapper-3" onClick={() => setActiveTab('anonymize')}>
+        Анонимизация
+      </button>
+      <div
+        className="brand-icon"
+        onClick={() => setActiveTab('home')}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            setActiveTab('home')
+          }
+        }}
+        role="button"
+        tabIndex={0}
+      >
+        <Box />
       </div>
 
-      {method === ANONYMIZATION_METHODS.PSEUDONYMIZATION && (
-        <div className="form-group">
-          <label className="form-label">Секретный ключ для псевдонимизации (необязательно):</label>
-          <input
-            type="text"
-            className="form-input"
-            value={pseudonymSalt}
-            onChange={(e) => setPseudonymSalt(e.target.value)}
-            placeholder="Например: project-2026-secret"
-          />
-          <div className="form-help" style={{ marginTop: '0.5rem' }}>
-            Один и тот же ключ дает одинаковые псевдонимы для одинаковых значений. Можно оставить пустым.
-          </div>
-        </div>
-      )}
+      <div className="footer-copyright">® IKAI 2026</div>
 
-      <div className="form-group">
-        <label className="form-label">Шаблон для выбора колонок:</label>
-        <select
-          className="form-select"
-          value={template}
-          onChange={handleTemplateChange}
-          disabled={method !== ANONYMIZATION_METHODS.MASKING}
-        >
-          <option value="users">users</option>
-          <option value="orders">orders</option>
-        </select>
-      </div>
+      <StatusModal
+        open={Boolean(notification)}
+        type={notification?.type || 'info'}
+        title={notification?.type === 'success' ? 'Готово' : 'Ошибка'}
+        message={notification?.message || ''}
+        onClose={() => setNotification(null)}
+      />
 
-      {method === ANONYMIZATION_METHODS.MASKING && (
-        <div className="alert alert-info" style={{ marginBottom: '1rem' }}>
-          <span className="alert-icon">i</span>
-          <div>
-            <div><strong>Требования к CSV для маскирования:</strong></div>
-            <div>1. Первая строка должна содержать заголовки колонок.</div>
-            <div>2. Названия колонок должны точно совпадать с шаблоном.</div>
-            <div>3. Файл должен быть в формате CSV (UTF-8 или Windows-1251).</div>
-            {template === 'users' ? (
-              <>
-                <div>Ожидаемые колонки users: full_name, email, phone, city.</div>
-                <div>Формат данных: email вида name@domain, phone строка с цифрами и/или символами.</div>
-              </>
+      <div className="main-form-card" style={{ height: 'auto', minHeight: '601px', paddingBottom: '40px' }}>
+        <h1 className="main-title">Анонимизация данных</h1>
+
+        <div className="field-grid">
+          <div className={`field-group${fieldErrors.file ? ' error' : ''}`} style={{ gridColumn: 'span 2' }}>
+            <label className="field-label">Загрузка файла:</label>
+            {!file ? (
+              <FileUpload onFileUpload={handleFileUpload} error={Boolean(fieldErrors.file)} />
             ) : (
-              <>
-                <div>Ожидаемые колонки orders: order_id, user_id, date, amount, status.</div>
-                <div>Формат данных: date желательно YYYY-MM-DD, amount числовое значение.</div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {method === ANONYMIZATION_METHODS.REMOVE && (
-        <div className="form-group">
-          <label className="form-label">Что делать с выбранными колонками:</label>
-          <select className="form-select" value={removeMode} onChange={(e) => setRemoveMode(e.target.value)}>
-            <option value="empty">Оставить колонку, но очистить значения</option>
-            <option value="drop">Удалить колонку полностью</option>
-          </select>
-        </div>
-      )}
-
-      <div className="form-group">
-        <label className="form-label">Колонки для анонимизации:</label>
-        {method !== ANONYMIZATION_METHODS.MASKING && !file ? (
-          <div className="alert alert-info">
-            <span className="alert-icon">i</span>
-            <div>Загрузите CSV, чтобы увидеть список колонок файла</div>
-          </div>
-        ) : method !== ANONYMIZATION_METHODS.MASKING && csvHeaders.length === 0 ? (
-          <div className="alert alert-info">
-            <span className="alert-icon">i</span>
-            <div>Не удалось прочитать заголовок CSV</div>
-          </div>
-        ) : (method === ANONYMIZATION_METHODS.MASKING ? columns : csvHeaders).length === 0 ? (
-          <div className="alert alert-info">
-            <span className="alert-icon">i</span>
-            <div>Нет колонок для анонимизации в этом шаблоне</div>
-          </div>
-        ) : (
-          <div className="checkbox-group">
-            {(method === ANONYMIZATION_METHODS.MASKING ? columns : csvHeaders).map((column) => (
-              <div className="checkbox-item" key={column}>
-                <input
-                  id={`col-${column}`}
-                  type="checkbox"
-                  checked={selectedColumns.includes(column)}
-                  onChange={() => toggleColumn(column)}
-                />
-                <label htmlFor={`col-${column}`}>{column}</label>
+              <div className="file-info" style={{ background: 'rgba(217,217,217,0.3)', border: 'none' }}>
+                <span className="checkbox-label" style={{ fontWeight: 400 }}>Файл: {file.name}</span>
+                <button
+                  className="small-btn"
+                  onClick={() => {
+                    setFile(null)
+                    clearFieldError('file')
+                  }}
+                >
+                  Загрузить другой
+                </button>
               </div>
-            ))}
+            )}
+            {fieldErrors.file && <div className="field-error">{fieldErrors.file}</div>}
+          </div>
+
+          <div className="field-group">
+            <label className="field-label">Способ анонимизации:</label>
+            <div className="input-container">
+              <select className="form-select" value={method} onChange={handleMethodChange}>
+                <option value={ANONYMIZATION_METHODS.MASKING}>Маскирование</option>
+                <option value={ANONYMIZATION_METHODS.PSEUDONYMIZATION}>Псевдонимизация</option>
+                <option value={ANONYMIZATION_METHODS.REMOVE}>Удаление/замена на пустое</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="field-group">
+            <label className="field-label">Шаблон колонок:</label>
+            <div className="input-container">
+              <select
+                className="form-select"
+                value={template}
+                onChange={handleTemplateChange}
+                disabled={method !== ANONYMIZATION_METHODS.MASKING}
+              >
+                <option value="users">users</option>
+                <option value="orders">orders</option>
+              </select>
+            </div>
+          </div>
+
+          {method === ANONYMIZATION_METHODS.PSEUDONYMIZATION && (
+            <div className="field-group" style={{ gridColumn: 'span 2' }}>
+              <label className="field-label">Секретный ключ (необязательно):</label>
+              <div className="input-container">
+                <input
+                  type="text"
+                  className="form-input"
+                  value={pseudonymSalt}
+                  onChange={(e) => setPseudonymSalt(e.target.value)}
+                  placeholder="Например: project-2026-secret"
+                />
+              </div>
+            </div>
+          )}
+
+          {method === ANONYMIZATION_METHODS.REMOVE && (
+            <div className="field-group" style={{ gridColumn: 'span 2' }}>
+              <label className="field-label">Что делать с выбранными колонками:</label>
+              <div className="input-container">
+                <select className="form-select" value={removeMode} onChange={(e) => setRemoveMode(e.target.value)}>
+                  <option value="empty">Оставить колонку, но очистить значения</option>
+                  <option value="drop">Удалить колонку полностью</option>
+                </select>
+              </div>
+            </div>
+          )}
+
+          <div className={`field-group${fieldErrors.columns ? ' error' : ''}`} style={{ gridColumn: 'span 2' }}>
+            <label className="field-label">Колонки для анонимизации:</label>
+            <div className="checkbox-grid" style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
+              {(method === ANONYMIZATION_METHODS.MASKING ? columns : csvHeaders).map((column) => (
+                <label className="custom-checkbox" key={column}>
+                  <input
+                    type="checkbox"
+                    checked={selectedColumns.includes(column)}
+                    onChange={() => toggleColumn(column)}
+                  />
+                  <div className="checkbox-box">
+                    <div className="checkbox-inner" />
+                  </div>
+                  <span className="checkbox-label">{column}</span>
+                </label>
+              ))}
+              {(method === ANONYMIZATION_METHODS.MASKING ? columns : csvHeaders).length === 0 && (
+                <span className="phone-prefix-hint">Загрузите файл или выберите шаблон</span>
+              )}
+            </div>
+            {fieldErrors.columns && <div className="field-error">{fieldErrors.columns}</div>}
+          </div>
+        </div>
+
+        <button
+          className="submit-btn"
+          onClick={handleAnonymize}
+          disabled={!file || loading}
+          aria-busy={loading}
+        >
+          <span className="button-content">
+            {loading && <span className="loading button-spinner" aria-hidden="true" />}
+            <span>{loading ? 'Обрабатываю...' : 'Применить'}</span>
+          </span>
+        </button>
+
+        {loading && (
+          <div className="loading-bar" aria-hidden="true">
+            <span />
           </div>
         )}
       </div>
 
-      {file && (
-        <div className="file-info">
-          <span>Файл: {file.name}</span>
-          <button
-            className="btn btn-secondary btn-small"
-            onClick={() => setFile(null)}
-          >
-            Загрузить другой
-          </button>
+      {(inputPreview || outputPreview) && (
+        <div className="preview-container" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+          <div className="preview-card">
+            <h2 className="main-title" style={{ fontSize: '18px', marginBottom: '10px', textAlign: 'left' }}>До обработки</h2>
+            {inputPreview ? renderPreviewTable(inputPreview) : <div className="preview-empty">Файл не загружен.</div>}
+          </div>
+          <div className="preview-card">
+            <h2 className="main-title" style={{ fontSize: '18px', marginBottom: '10px', textAlign: 'left' }}>После обработки</h2>
+            {outputPreview ? renderPreviewTable(outputPreview) : <div className="preview-empty">Результат появится после обработки.</div>}
+          </div>
         </div>
       )}
-
-      {inputPreview && (
-        <section className="preview-section preview-comparison">
-          <div className="card">
-            <div className="card-title">До обработки</div>
-            <div className="preview-meta">
-              Файл {inputPreview.fileName}. Показаны первые {inputPreview.rows.length} строк.
-            </div>
-            {renderPreviewTable(inputPreview)}
-          </div>
-
-          <div className="card">
-            <div className="card-title">После обработки</div>
-            <div className="preview-meta">
-              {outputPreview
-                ? `Файл ${outputPreview.fileName}. Показаны первые ${outputPreview.rows.length} строк.`
-                : 'Запустите обработку, чтобы увидеть результат.'}
-            </div>
-            {outputPreview ? renderPreviewTable(outputPreview) : <div className="preview-empty">После анонимизации здесь появится сравнение.</div>}
-          </div>
-        </section>
-      )}
-
-      <button
-        className="btn btn-success btn-large btn-block"
-        onClick={handleAnonymize}
-        disabled={!file || loading}
-      >
-        {loading ? 'Обрабатываю...' : 'Применить'}
-      </button>
     </div>
   )
 }
